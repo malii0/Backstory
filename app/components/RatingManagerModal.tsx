@@ -1,0 +1,306 @@
+'use client';
+
+import React, { useState, useMemo } from 'react';
+import { X, Star, Search, Film, Trash2 } from 'lucide-react';
+import { LogMetadata, MediaItem } from '@/lib/types';
+
+interface RatingManagerModalProps {
+  isOpen: boolean;
+  logs: Record<string, LogMetadata>;
+  onClose: () => void;
+  onUpdateRating: (item: MediaItem, rating: number) => void;
+  onSelectItem: (item: MediaItem) => void;
+}
+
+type SortOption = 'rating.desc' | 'rating.asc' | 'updated.desc' | 'title.asc';
+type RatingFilter = 'all' | 'rated' | 'unrated';
+
+export default function RatingManagerModal({
+  isOpen,
+  logs,
+  onClose,
+  onUpdateRating,
+  onSelectItem,
+}: RatingManagerModalProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedMediaType, setSelectedMediaType] = useState<'all' | 'movie' | 'tv'>('all');
+  const [ratingFilter, setRatingFilter] = useState<RatingFilter>('all');
+  const [sortBy, setSortBy] = useState<SortOption>('rating.desc');
+
+  const filteredLogs = useMemo(() => {
+    let list = Object.entries(logs)
+      .filter(([_, log]) => log.itemData)
+      .map(([key, log]) => ({ key, log, item: log.itemData! }));
+
+    if (ratingFilter === 'rated') {
+      list = list.filter(({ log }) => log.rating > 0);
+    } else if (ratingFilter === 'unrated') {
+      list = list.filter(({ log }) => log.rating === 0);
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(({ item }) => {
+        const title = (item.title || item.name || '').toLowerCase();
+        return title.includes(q);
+      });
+    }
+
+    if (selectedMediaType !== 'all') {
+      list = list.filter(({ item }) => item.media_type === selectedMediaType);
+    }
+
+    list.sort((a, b) => {
+      if (sortBy === 'rating.desc') return b.log.rating - a.log.rating;
+      if (sortBy === 'rating.asc') return a.log.rating - b.log.rating;
+      if (sortBy === 'title.asc') {
+        const titleA = a.item.title || a.item.name || '';
+        const titleB = b.item.title || b.item.name || '';
+        return titleA.localeCompare(titleB, 'tr');
+      }
+      return (b.log.updatedAt || 0) - (a.log.updatedAt || 0);
+    });
+
+    return list;
+  }, [logs, searchQuery, selectedMediaType, ratingFilter, sortBy]);
+
+  const ratedCount = useMemo(
+    () => Object.values(logs).filter((l) => l.rating > 0).length,
+    [logs]
+  );
+  const unratedCount = useMemo(
+    () => Object.values(logs).filter((l) => l.itemData && l.rating === 0).length,
+    [logs]
+  );
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-3xl bg-background border border-border rounded-3xl shadow-2xl flex flex-col max-h-[88vh] overflow-hidden relative"
+      >
+        <div className="p-5 border-b border-border/80 flex items-center justify-between gap-3 bg-card/50">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-accent/10 border border-accent/20 rounded-2xl text-accent">
+              <Star className="w-5 h-5 fill-accent" />
+            </div>
+            <div>
+              <h2 className="text-lg font-extrabold text-foreground">Yönetim</h2>
+              <p className="text-xs text-muted-foreground">
+                <span className="text-accent font-bold">{ratedCount}</span> Puanlandı •{' '}
+                <span className="text-muted-foreground font-bold">{unratedCount}</span> Puan Bekliyor
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="p-2 text-muted-foreground hover:text-foreground bg-card border border-border rounded-full transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-4 border-b border-border/60 bg-card/30 space-y-3">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Listendeki film veya dizilerde ara..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-card border border-border rounded-xl py-2 pl-9 pr-8 text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:border-accent/50 transition-all"
+            />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-1 bg-card border border-border p-1 rounded-xl">
+              <button
+                onClick={() => setRatingFilter('all')}
+                className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
+                  ratingFilter === 'all'
+                    ? 'bg-muted text-accent'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Tümü ({ratedCount + unratedCount})
+              </button>
+              <button
+                onClick={() => setRatingFilter('rated')}
+                className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
+                  ratingFilter === 'rated'
+                    ? 'bg-muted text-accent'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Puanlananlar ({ratedCount})
+              </button>
+              <button
+                onClick={() => setRatingFilter('unrated')}
+                className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
+                  ratingFilter === 'unrated'
+                    ? 'bg-muted text-accent'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Puan Verilmeyenler ({unratedCount})
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 bg-card border border-border p-1 rounded-xl">
+                <button
+                  onClick={() => setSelectedMediaType('all')}
+                  className={`px-2 py-0.5 rounded-md font-semibold ${
+                    selectedMediaType === 'all' ? 'text-accent bg-muted' : 'text-muted-foreground'
+                  }`}
+                >
+                  Tümü
+                </button>
+                <button
+                  onClick={() => setSelectedMediaType('movie')}
+                  className={`px-2 py-0.5 rounded-md font-semibold ${
+                    selectedMediaType === 'movie' ? 'text-accent bg-muted' : 'text-muted-foreground'
+                  }`}
+                >
+                  Film
+                </button>
+                <button
+                  onClick={() => setSelectedMediaType('tv')}
+                  className={`px-2 py-0.5 rounded-md font-semibold ${
+                    selectedMediaType === 'tv' ? 'text-accent bg-muted' : 'text-muted-foreground'
+                  }`}
+                >
+                  Dizi
+                </button>
+              </div>
+
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                className="bg-card border border-border text-foreground text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-accent/50"
+              >
+                <option value="rating.desc">Puan: Yüksekten Düşüğe</option>
+                <option value="rating.asc">Puan: Düşükten Yükseğe</option>
+                <option value="updated.desc">Son Güncellenenler</option>
+                <option value="title.asc">İsim (A-Z)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-y-auto custom-scrollbar flex-1 p-4 space-y-2.5">
+          {filteredLogs.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground text-xs">
+              Kriterlere uyan içerik bulunamadı.
+            </div>
+          ) : (
+            filteredLogs.map(({ item, log }) => {
+              const title = item.title || item.name || 'İsimsiz İçerik';
+              const releaseYear = (item.release_date || item.first_air_date || '').split('-')[0];
+
+              return (
+                <div
+                  key={`${item.media_type}_${item.id}`}
+                  className={`border rounded-2xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all group ${
+                    log.rating > 0
+                      ? 'bg-card/70 border-border/80 hover:border-border'
+                      : 'bg-background/40 border-border/40 hover:border-accent/30'
+                  }`}
+                >
+                  <div
+                    onClick={() => {
+                      onSelectItem(item);
+                      onClose();
+                    }}
+                    className="flex items-center gap-3 min-w-0 cursor-pointer flex-1"
+                  >
+                    {item.poster_path ? (
+                      <img
+                        src={`https://image.tmdb.org/t/p/w92${item.poster_path}`}
+                        alt={title}
+                        className="w-10 h-14 object-cover rounded-xl border border-border flex-shrink-0 group-hover:scale-105 transition-transform"
+                      />
+                    ) : (
+                      <div className="w-10 h-14 bg-background rounded-xl border border-border flex items-center justify-center text-muted-foreground flex-shrink-0">
+                        <Film className="w-5 h-5" />
+                      </div>
+                    )}
+
+                    <div className="min-w-0 space-y-0.5">
+                      <h4 className="text-xs font-bold text-foreground group-hover:text-accent transition-colors truncate">
+                        {title}
+                      </h4>
+                      <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                        <span className="uppercase font-bold text-accent/80">
+                          {item.media_type === 'tv' ? 'Dizi' : 'Film'}
+                        </span>
+                        {releaseYear && <span>• {releaseYear}</span>}
+                        {log.isCompleted && <span className="text-emerald-400">• İzlendi</span>}
+                        {log.isWatchlist && <span className="text-accent">• İzlenecek</span>}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/60">
+                    <div className="flex items-center gap-0.5 bg-background border border-border/80 px-2 py-1 rounded-xl">
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((star) => (
+                        <button
+                          key={star}
+                          onClick={() => onUpdateRating(item, star)}
+                          className="p-0.5 hover:scale-125 transition-transform focus:outline-none"
+                          title={`${star} Puan`}
+                        >
+                          <Star
+                            className={`w-3.5 h-3.5 ${
+                              log.rating >= star
+                                ? 'text-accent fill-accent'
+                                : 'text-muted border-border hover:text-muted-foreground'
+                            }`}
+                          />
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-xs font-black min-w-[2.5rem] text-right ${
+                          log.rating > 0 ? 'text-accent' : 'text-muted-foreground font-normal'
+                        }`}
+                      >
+                        {log.rating > 0 ? `${log.rating}/10` : 'Puan Yok'}
+                      </span>
+
+                      {log.rating > 0 && (
+                        <button
+                          onClick={() => onUpdateRating(item, 0)}
+                          className="p-1.5 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                          title="Puanı Kaldır"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: var(--app-background);
+  --color-foreground: var(--app-foreground);
+  --color-card: var(--app-card);
+  --color-muted: var(--app-muted);
+  --color-muted-foreground: var(--app-muted-foreground);
+  --color-border: var(--app-border);
+  --color-accent: var(--app-accent);
+  --color-accent-foreground: var(--app-accent-foreground);
+}
+
+:root {
+  --app-background: #09090b;
+  --app-foreground: #f4f4f5;
+  --app-card: #18181b;
+  --app-muted: #27272a;
+  --app-muted-foreground: #a1a1aa;
+  --app-border: #27272a;
+
+  /* Varsayılan Kehribar (Amber) Accent */
+  --app-accent: #f59e0b;
+  --app-accent-foreground: #09090b;
+}
+
+[data-theme="light"] {
+  --app-background: #f8fafc;
+  --app-foreground: #0f172a;
+  --app-card: #ffffff;
+  --app-muted: #f1f5f9;
+  --app-muted-foreground: #64748b;
+  --app-border: #e2e8f0;
+}
+
+@layer base {
+  html, body {
+    min-height: 100dvh;
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans, system-ui, sans-serif);
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.overflow-y-auto {
+  -webkit-overflow-scrolling: touch;
+}
