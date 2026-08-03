@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Backstory 🎬
 
-## Getting Started
+A modern, responsive web application designed for tracking movies and TV series.
 
-First, run the development server:
+## 🚀 Live Demo
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+* **Live Application:** [backstory0.vercel.app](https://backstory0.vercel.app)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🛠️ Tech Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+* **Framework:** Next.js (App Router)
+* **Styling:** Tailwind CSS
+* **Backend & Auth:** Supabase (PostgreSQL, Row Level Security)
+* **External Data:** TMDB API
+* **Analytics:** Vercel Analytics & Speed Insights
+* **Deployment:** Vercel
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## ✨ Features
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+* **Dynamic Media Logging:** Track watched movies and series with custom status updates.
+* **Responsive UI:** Clean, adaptive layout designed for seamless usage across desktop and mobile devices.
+* **Secure Authentication:** User management powered by Supabase Auth with strict RLS policies.
+* **Optimized Performance:** Fast asset delivery utilizing Next/Image and automated Vercel optimizations.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 📌 Access & Registration
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Registration is currently closed to the public. To use the platform, reach out through any communication channel so I can manually create your account.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+* **Website:** [malionurlucan.me](https://malionurlucan.me)
+* **GitHub:** [@malionurlucan](https://github.com/malionurlucan)
+
+---
+
+## ⚖️ Acknowledgments & Legal
+
+* This product uses the TMDB API but is not endorsed or certified by TMDB.
+* Media data and imagery are provided by [TMDB](https://www.themoviedb.org/).
+
+---
+
+## 📄 License
+
+All rights reserved. Unauthorized copying, modification, or distribution of this software is strictly prohibited.
