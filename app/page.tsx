@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Image from 'next/image';
-import { Search, X, SlidersHorizontal, AlertCircle, RefreshCw, BarChart3, CheckCircle2, RotateCcw, Dices, Sparkles, LogOut, LogIn, Clapperboard, Calendar, Users, Star, EyeOff } from 'lucide-react';
+import { Search, X, SlidersHorizontal, AlertCircle, RefreshCw, BarChart3, CheckCircle2, RotateCcw, Dices, Sparkles, LogOut, LogIn, Clapperboard, Calendar, Users, Star, EyeOff, ShieldCheck } from 'lucide-react';
 import MediaCard from './components/MediaCard';
 import DetailDrawer from './components/DetailDrawer';
 import SkeletonGrid from './components/SkeletonGrid';
@@ -26,6 +26,7 @@ export default function Home() {
   const [isFeedLoading, setIsFeedLoading] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isRatingManagerOpen, setIsRatingManagerOpen] = useState(false);
+  const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
   const [randomPick, setRandomPick] = useState<MediaItem | null>(null);
 
   const [itemProvidersMap, setItemProvidersMap] = useState<Record<string, number[]>>({});
@@ -187,7 +188,7 @@ export default function Home() {
   }, [activeTab, auth.isAuthenticated, loadFeed]);
 
   useEffect(() => {
-    if (selectedItem || randomPick || auth.isAuthModalOpen || isProfileModalOpen || isRatingManagerOpen) {
+    if (selectedItem || randomPick || auth.isAuthModalOpen || isProfileModalOpen || isRatingManagerOpen || isPrivacyModalOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -195,7 +196,7 @@ export default function Home() {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [selectedItem, randomPick, auth.isAuthModalOpen, isProfileModalOpen, isRatingManagerOpen]);
+  }, [selectedItem, randomPick, auth.isAuthModalOpen, isProfileModalOpen, isRatingManagerOpen, isPrivacyModalOpen]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -273,7 +274,8 @@ export default function Home() {
       const type = selectedItem.media_type || 'movie';
       const proxyParams = new URLSearchParams({
         endpoint: `/${type}/${selectedItem.id}`,
-        append_to_response: 'recommendations,similar,videos,watch/providers,external_ids,credits',
+        append_to_response: 'recommendations,similar,videos,watch/providers,external_ids,credits,images',
+        include_image_language: 'en,null',
       });
 
       const res = await fetch(`/api/tmdb?${proxyParams.toString()}`);
@@ -394,7 +396,7 @@ export default function Home() {
   const isSearchActive = explore.query.trim().length > 0;
 
   return (
-    <main className="min-h-dvh bg-background text-foreground font-sans p-4 sm:p-6 md:p-8 lg:p-10 relative pb-[calc(1rem+env(safe-area-inset-bottom))]">
+    <main className="min-h-dvh bg-background text-foreground font-sans p-4 sm:p-6 md:p-8 lg:p-10 relative pb-[calc(1rem+env(safe-area-inset-bottom))] flex flex-col justify-between">
       <AuthModal
         isOpen={auth.isAuthModalOpen}
         isInviteMode={auth.isInviteMode}
@@ -417,6 +419,43 @@ export default function Home() {
         onClose={() => setIsProfileModalOpen(false)}
         onUpdated={auth.loadProfile}
       />
+
+      {isPrivacyModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border p-6 rounded-3xl max-w-md w-full space-y-4 text-left shadow-2xl relative animate-in fade-in zoom-in-95">
+            <button
+              onClick={() => setIsPrivacyModalOpen(false)}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground p-1"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-2 text-accent">
+              <ShieldCheck className="w-5 h-5" />
+              <h3 className="text-base font-bold text-foreground">Gizlilik & KVKK Aydınlatması</h3>
+            </div>
+
+            <div className="text-xs text-muted-foreground leading-relaxed space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+              <p>
+                Bu uygulama kapsamında, hesabınızı oluşturabilmeniz, izleme geçmişinizi kaydedebilmeniz ve arkadaşlarınızla paylaşabilmeniz amacıyla e-posta adresiniz, kullanıcı adınız ve uygulama içi etkileşim verileriniz (izlediğiniz/kaydettiğiniz içerikler ve puanlarınız) Supabase altyapısı üzerinde saklanmaktadır.
+              </p>
+              <p>
+                Kişisel verileriniz hiçbir şekilde 3. taraflarla satılmaz veya pazarlama amacıyla kullanılmaz.
+              </p>
+              <p>
+                Hesabınızı ve saklanan tüm verilerinizi kalıcı olarak sildirmek veya bilgi almak için uygulama geliştiricisi ile iletişime geçebilirsiniz.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setIsPrivacyModalOpen(false)}
+              className="w-full bg-accent text-accent-foreground text-xs font-bold py-2.5 rounded-xl transition-all mt-2"
+            >
+              Anladım
+            </button>
+          </div>
+        </div>
+      )}
 
       {toastMessage && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-card border border-border text-foreground text-xs px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 max-w-[90vw]">
@@ -497,7 +536,7 @@ export default function Home() {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+      <div className="max-w-7xl w-full mx-auto space-y-6 sm:space-y-8">
         <header className="sticky top-0 z-40 bg-background/90 border-b border-border -mx-4 sm:-mx-6 md:-mx-8 lg:-mx-10 px-4 sm:px-6 md:px-8 lg:px-10 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all">
           <div className="flex items-center gap-3">
             <div className="relative w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 bg-accent/10 border border-accent/20 flex items-center justify-center p-1.5">
@@ -516,24 +555,8 @@ export default function Home() {
               />
             </div>
             
-            <div className="space-y-0.5">
+            <div>
               <h1 className="text-2xl font-bold tracking-tight text-foreground leading-none">Backstory</h1>
-              <div className="flex items-center gap-2">
-                <p className="text-xs text-muted-foreground">Sinema & Dizi Portfolyosu</p>
-                <span className="text-border font-bold text-[10px]">•</span>
-                <a
-                  href="https://www.themoviedb.org/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-card border border-border hover:border-border/80 transition-all opacity-80 hover:opacity-100"
-                >
-                  <img
-                    src="/tmdb-logo.svg"
-                    alt="TMDB Logo"
-                    className="h-3.5 w-auto object-contain"
-                  />
-                </a>
-              </div>
             </div>
           </div>
 
@@ -592,7 +615,6 @@ export default function Home() {
                 İstatistikler
               </button>
             </nav>
-
 
             {auth.isAuthenticated ? (
               <div className="flex items-center gap-2">
@@ -1244,6 +1266,31 @@ export default function Home() {
           onSelectItem={handleSelectItem}
         />
       </div>
+
+      <footer className="mt-12 pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-muted-foreground max-w-7xl w-full mx-auto">
+        <div className="flex items-center gap-3">
+          <a
+            href="https://www.themoviedb.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-shrink-0 opacity-80 hover:opacity-100 transition-opacity"
+          >
+            <img
+              src="/tmdb-logo.svg"
+              alt="TMDB Logo"
+              className="h-3.5 w-auto object-contain"
+            />
+          </a>
+          <span>This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
+        </div>
+        
+        <button
+          onClick={() => setIsPrivacyModalOpen(true)}
+          className="hover:text-foreground underline transition-colors"
+        >
+          Gizlilik & KVKK
+        </button>
+      </footer>
     </main>
   );
 }
