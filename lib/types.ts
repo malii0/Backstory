@@ -12,7 +12,8 @@ export interface MediaItem {
   first_air_date?: string;
   genre_ids?: number[];
   popularity?: number;
-  recommendationSource?: 'similar' | 'genre' | 'wildcard'; // Eklendi
+  recommendationSource?: 'similar' | 'genre' | 'wildcard';
+  matchScore?: number; // Akıllı sıralama puanı eklendi
 }
 
 export interface Collection {

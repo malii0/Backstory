@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback } from 'react';
-import { Star, Eye, Bookmark, RotateCcw, CheckCircle2, Sparkles, Film } from 'lucide-react';
+import { Star, Eye, Bookmark, RotateCcw, CheckCircle2, Sparkles, Film, Compass } from 'lucide-react';
 import { MediaItem, LogMetadata } from '@/lib/types';
 import { getEffectiveWatchCount } from '@/lib/utils';
 
@@ -88,23 +88,29 @@ function MediaCardComponent({
           </div>
         )}
 
-        {/* Rozet (Badge): Sana Özel Öneri Gerekçesi */}
+        {/* Rozet (Badge): Sana Özel Öneri Gerekçesi (Benzer / Tür / Keşfet) */}
         {item.recommendationSource && (
-          <div className="absolute top-2 left-2 z-10 flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-extrabold backdrop-blur-md shadow-lg border">
+          <div className="absolute top-2 left-2 z-10 flex items-center text-[10px] font-extrabold shadow-lg">
             {item.recommendationSource === 'similar' && (
-              <span className="bg-purple-500/80 border-purple-400/50 text-white flex items-center gap-1 px-1.5 py-0.5 rounded-md">
+              <span className="bg-purple-900/90 border border-purple-400/50 text-purple-200 flex items-center gap-1 px-2 py-0.5 rounded-lg backdrop-blur-md">
                 <Sparkles className="w-2.5 h-2.5 fill-current" /> Benzer
               </span>
             )}
             {item.recommendationSource === 'genre' && (
-              <span className="bg-blue-500/80 border-blue-400/50 text-white flex items-center gap-1 px-1.5 py-0.5 rounded-md">
+              <span className="bg-blue-900/90 border border-blue-400/50 text-blue-200 flex items-center gap-1 px-2 py-0.5 rounded-lg backdrop-blur-md">
                 <Film className="w-2.5 h-2.5" /> Sevdiğin Tür
+              </span>
+            )}
+            {item.recommendationSource === 'wildcard' && (
+              <span className="bg-amber-900/90 border border-amber-400/50 text-amber-200 flex items-center gap-1 px-2 py-0.5 rounded-lg backdrop-blur-md">
+                <Compass className="w-2.5 h-2.5" /> Keşfet
               </span>
             )}
           </div>
         )}
 
-        {userRating > 0 && (
+        {/* Kullanıcı Puanı (Rozet yoksa sol üstte gösterilir) */}
+        {userRating > 0 && !item.recommendationSource && (
           <div className="absolute top-2 left-2 z-10 bg-background/80 backdrop-blur-md border border-accent/50 text-accent text-[11px] font-black px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-lg">
             <Star className="w-3 h-3 fill-accent text-accent" />
             <span>{userRating}</span>
@@ -208,6 +214,7 @@ export default React.memo(MediaCardComponent, (prev, next) => {
   return (
     prev.item.id === next.item.id &&
     prev.item.recommendationSource === next.item.recommendationSource &&
+    prev.item.matchScore === next.item.matchScore &&
     prev.isNowPlaying === next.isNowPlaying &&
     prev.onSelect === next.onSelect &&
     prev.onToggleCompleted === next.onToggleCompleted &&
