@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback } from 'react';
-import { Star, Eye, Bookmark, RotateCcw, CheckCircle2 } from 'lucide-react';
+import { Star, Eye, Bookmark, RotateCcw, CheckCircle2, Sparkles, Film } from 'lucide-react';
 import { MediaItem, LogMetadata } from '@/lib/types';
 import { getEffectiveWatchCount } from '@/lib/utils';
 
@@ -88,6 +88,22 @@ function MediaCardComponent({
           </div>
         )}
 
+        {/* Rozet (Badge): Sana Özel Öneri Gerekçesi */}
+        {item.recommendationSource && (
+          <div className="absolute top-2 left-2 z-10 flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-extrabold backdrop-blur-md shadow-lg border">
+            {item.recommendationSource === 'similar' && (
+              <span className="bg-purple-500/80 border-purple-400/50 text-white flex items-center gap-1 px-1.5 py-0.5 rounded-md">
+                <Sparkles className="w-2.5 h-2.5 fill-current" /> Benzer
+              </span>
+            )}
+            {item.recommendationSource === 'genre' && (
+              <span className="bg-blue-500/80 border-blue-400/50 text-white flex items-center gap-1 px-1.5 py-0.5 rounded-md">
+                <Film className="w-2.5 h-2.5" /> Sevdiğin Tür
+              </span>
+            )}
+          </div>
+        )}
+
         {userRating > 0 && (
           <div className="absolute top-2 left-2 z-10 bg-background/80 backdrop-blur-md border border-accent/50 text-accent text-[11px] font-black px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-lg">
             <Star className="w-3 h-3 fill-accent text-accent" />
@@ -162,7 +178,7 @@ function MediaCardComponent({
       </div>
 
       <div className="p-3 flex flex-col flex-1 justify-between gap-1.5">
-        <h3 
+        <h3
           title={title}
           className="text-xs font-bold text-foreground line-clamp-2 leading-tight min-h-[2.25rem] flex items-center group-hover:text-accent transition-colors"
         >
@@ -191,6 +207,7 @@ function MediaCardComponent({
 export default React.memo(MediaCardComponent, (prev, next) => {
   return (
     prev.item.id === next.item.id &&
+    prev.item.recommendationSource === next.item.recommendationSource &&
     prev.isNowPlaying === next.isNowPlaying &&
     prev.onSelect === next.onSelect &&
     prev.onToggleCompleted === next.onToggleCompleted &&

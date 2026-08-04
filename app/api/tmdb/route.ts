@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const TMDB_API_KEY = process.env.TMDB_API_KEY;
+// TypeScript'in 'process' sembolünü bulamadım hatasını kesmek için globalThis kullanımı
+const env = (globalThis as unknown as { process?: { env?: Record<string, string> } }).process?.env;
+const TMDB_API_KEY = env?.TMDB_API_KEY;
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
 const ALLOWED_PATTERNS = [
   /^\/search\/multi$/,
   /^\/discover\/(movie|tv)$/,
   /^\/(movie|tv)\/\d+$/,
+  /^\/(movie|tv)\/\d+\/recommendations$/,
+  /^\/trending\/all\/week$/,
   /^\/collection\/\d+$/,
   /^\/movie\/(now_playing|upcoming)$/,
   /^\/person\/\d+\/combined_credits$/,
@@ -46,7 +50,7 @@ export async function GET(request: NextRequest) {
 
     const res = await fetch(targetUrl.toString(), {
       next: { revalidate: 3600 },
-    });
+    } as RequestInit & { next?: { revalidate?: number } });
 
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));

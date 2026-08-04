@@ -12,6 +12,7 @@ export interface MediaItem {
   first_air_date?: string;
   genre_ids?: number[];
   popularity?: number;
+  recommendationSource?: 'similar' | 'genre' | 'wildcard'; // Eklendi
 }
 
 export interface Collection {

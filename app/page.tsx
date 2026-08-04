@@ -18,6 +18,7 @@ import { saveLogToSupabase, deleteLogFromSupabase, fetchActivityFeed } from '@/l
 import { useAuth } from '@/hooks/useAuth';
 import { useMediaLogs } from '@/hooks/useMediaLogs';
 import { useTmdbExplore, DEFAULT_YEAR_RANGE } from '@/hooks/useTmdbExplore';
+import { useRecommendations } from '@/hooks/useRecommendations';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('explore');
@@ -36,8 +37,7 @@ export default function Home() {
 
   // Toast & Undo State
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
+const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const modalSearchInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -55,6 +55,7 @@ export default function Home() {
   const auth = useAuth();
   const logsManager = useMediaLogs(auth.isAuthenticated, showToast);
   const explore = useTmdbExplore(activeTab);
+  const recommendations = useRecommendations(logsManager.logs);
 
   // Oturum açmış kullanıcının izlediği ve izleme listesindeki içerik ID'leri
   const userWatchedIds = useMemo(() => {
@@ -98,6 +99,12 @@ export default function Home() {
   const handleToggleWatchlist = useCallback((item: MediaItem) => {
     logsManager.toggleWatchlist(item, selectedItem, detailData);
   }, [logsManager, selectedItem, detailData]);
+
+  // Sana Özel butonuna tıklama mantığı (Lazy)
+  const handleSelectPersonalized = () => {
+    explore.setExploreMode('personalized');
+    recommendations.fetchRecommendations(false);
+  };
 
   // Platform Filtresi Seçildiğinde Kontrollü Batch Fetching (N+1 Önlemi)
   useEffect(() => {
@@ -244,7 +251,7 @@ export default function Home() {
   };
 
   const handleScroll = useCallback(() => {
-    if (activeTab !== 'explore' || explore.isLoading || explore.isFetchingMore || !explore.hasMore) return;
+    if (activeTab !== 'explore' || explore.exploreMode === 'personalized' || explore.isLoading || explore.isFetchingMore || !explore.hasMore) return;
 
     if (
       window.innerHeight + document.documentElement.scrollTop >=
@@ -254,7 +261,7 @@ export default function Home() {
       explore.setPage(nextPage);
       explore.fetchContent(nextPage);
     }
-  }, [activeTab, explore.isLoading, explore.isFetchingMore, explore.hasMore, explore.page, explore.fetchContent, explore.setPage]);
+  }, [activeTab, explore.exploreMode, explore.isLoading, explore.isFetchingMore, explore.hasMore, explore.page, explore.fetchContent, explore.setPage]);
 
   useEffect(() => {
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -296,7 +303,7 @@ export default function Home() {
 
   const displayedItems = useMemo(() => {
     if (activeTab === 'explore') {
-      let results = explore.searchResults;
+      let results = explore.exploreMode === 'personalized' ? recommendations.recommendations : explore.searchResults;
 
       if (hideLoggedItems) {
         results = results.filter((item) => {
@@ -372,7 +379,9 @@ export default function Home() {
   }, [
     activeTab,
     hideLoggedItems,
+    explore.exploreMode,
     explore.searchResults,
+    recommendations.recommendations,
     explore.query,
     explore.selectedMediaType,
     explore.minRating,
@@ -540,7 +549,7 @@ export default function Home() {
         <header className="sticky top-0 z-40 bg-background/90 border-b border-border -mx-4 sm:-mx-6 md:-mx-8 lg:-mx-10 px-4 sm:px-6 md:px-8 lg:px-10 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all">
           <div className="flex items-center gap-3">
             <div className="relative w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 bg-accent/10 border border-accent/20 flex items-center justify-center p-1.5">
-              <div 
+              <div
                 className="w-full h-full bg-accent dark:bg-foreground transition-colors duration-200"
                 style={{
                   maskImage: 'url(/logo.svg)',
@@ -554,10 +563,10 @@ export default function Home() {
                 }}
               />
             </div>
-            
+
             <div className="flex items-center gap-2.5">
               <h1 className="text-2xl font-bold tracking-tight text-foreground leading-none">Backstory</h1>
-              
+
               <div className="flex items-center gap-1.5">
                 <a
                   href="https://www.themoviedb.org/"
@@ -701,6 +710,20 @@ export default function Home() {
                   >
                     Tümü (Keşfet)
                   </button>
+
+                  {/* Sana Özel Pill / Butonu */}
+                  <button
+                    onClick={handleSelectPersonalized}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap flex items-center gap-1.5 ${
+                      explore.exploreMode === 'personalized'
+                        ? 'bg-purple-500/20 border-purple-500/40 text-purple-300 shadow-sm'
+                        : 'bg-card/60 border-border/80 text-muted-foreground hover:text-purple-400'
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                    Sana Özel
+                  </button>
+
                   <button
                     onClick={() => explore.setExploreMode('now_playing')}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap flex items-center gap-1.5 ${
@@ -808,7 +831,11 @@ export default function Home() {
                       className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-card border border-border rounded-lg text-xs text-accent transition-colors whitespace-nowrap"
                     >
                       <span>
-                        {explore.exploreMode === 'now_playing' ? 'Vizyondakiler' : 'Yakında Gelecekler'}
+                        {explore.exploreMode === 'now_playing'
+                          ? 'Vizyondakiler'
+                          : explore.exploreMode === 'personalized'
+                          ? 'Sana Özel'
+                          : 'Yakında Gelecekler'}
                       </span>
                       <X className="w-3 h-3 text-muted-foreground" />
                     </button>
@@ -1162,6 +1189,8 @@ export default function Home() {
                 {activeTab === 'explore'
                   ? explore.query.trim()
                     ? `'${explore.query}' arama sonuçları`
+                    : explore.exploreMode === 'personalized'
+                    ? 'Zevkine Göre Seçilenler'
                     : explore.exploreMode === 'now_playing'
                     ? 'Vizyondaki Filmler (Türkiye)'
                     : explore.exploreMode === 'upcoming'
@@ -1171,6 +1200,15 @@ export default function Home() {
                   ? `Bitirdikleriniz (${displayedItems.length})`
                   : `İzleme Listeniz (${displayedItems.length})`}
               </h2>
+
+              {activeTab === 'explore' && explore.exploreMode === 'personalized' && (
+                <button
+                  onClick={recommendations.refreshRecommendations}
+                  className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Başka Öneriler Getir
+                </button>
+              )}
 
               {activeTab === 'watchlist' && displayedItems.length > 0 && (
                 <button
@@ -1182,14 +1220,20 @@ export default function Home() {
               )}
             </div>
 
-            {explore.errorMessage && (
+            {(explore.errorMessage || recommendations.error) && (
               <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-center max-w-md mx-auto space-y-3">
                 <div className="flex items-center justify-center gap-2 text-red-400 font-medium text-sm">
                   <AlertCircle className="w-4 h-4" />
-                  {explore.errorMessage}
+                  {explore.errorMessage || recommendations.error}
                 </div>
                 <button
-                  onClick={() => explore.fetchContent(1, true)}
+                  onClick={() => {
+                    if (explore.exploreMode === 'personalized') {
+                      recommendations.fetchRecommendations(true);
+                    } else {
+                      explore.fetchContent(1, true);
+                    }
+                  }}
                   className="bg-muted hover:bg-muted/80 text-foreground text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 mx-auto transition-colors"
                 >
                   <RefreshCw className="w-3 h-3" /> Tekrar Deneyin
@@ -1197,11 +1241,13 @@ export default function Home() {
               </div>
             )}
 
-            {(explore.isLoading && activeTab === 'explore') || (logsManager.isLogsLoading && activeTab !== 'explore') ? (
+            {(explore.isLoading && activeTab === 'explore' && explore.exploreMode !== 'personalized') ||
+            (recommendations.isLoading && explore.exploreMode === 'personalized') ||
+            (logsManager.isLogsLoading && activeTab !== 'explore') ? (
               <SkeletonGrid />
             ) : (
               <>
-                {!explore.errorMessage && displayedItems.length === 0 && (
+                {!explore.errorMessage && !recommendations.error && displayedItems.length === 0 && (
                   <div className="text-center py-16 sm:py-20 space-y-3">
                     <p className="text-muted-foreground text-sm">
                       {activeTab === 'explore'
@@ -1252,7 +1298,7 @@ export default function Home() {
               </>
             )}
 
-            {explore.isFetchingMore && (
+            {explore.isFetchingMore && explore.exploreMode !== 'personalized' && (
               <div className="text-center py-6 text-muted-foreground text-xs animate-pulse">
                 Daha fazla içerik yükleniyor...
               </div>

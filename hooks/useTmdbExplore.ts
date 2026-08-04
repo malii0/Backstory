@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MediaItem, ActiveTab } from '@/lib/types';
 
 export type YearRange = { start: number; end: number };
-export type ExploreMode = 'standard' | 'now_playing' | 'upcoming';
+export type ExploreMode = 'standard' | 'now_playing' | 'upcoming' | 'personalized';
 export type WatchProvider = { provider_id: number; provider_name: string; logo_path: string };
 
 export const DEFAULT_YEAR_RANGE: YearRange = { start: 1950, end: new Date().getFullYear() };
@@ -50,6 +50,20 @@ export function useTmdbExplore(activeTab: ActiveTab) {
     }, 350);
     return () => clearTimeout(timer);
   }, [query]);
+
+  // Arama metni girildiğinde 'personalized' modundan çık
+  useEffect(() => {
+    if (query.trim() && exploreMode === 'personalized') {
+      setExploreMode('standard');
+    }
+  }, [query, exploreMode]);
+
+  // Manuel filtre seçildiğinde 'personalized' modundan çık
+  useEffect(() => {
+    if ((selectedGenreId !== null || selectedProviderId !== null || minRating > 0) && exploreMode === 'personalized') {
+      setExploreMode('standard');
+    }
+  }, [selectedGenreId, selectedProviderId, minRating, exploreMode]);
 
   // Tab değişiminde sıralama mantığını koruma
   useEffect(() => {
@@ -123,7 +137,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
   }, [activeTab]);
 
   const fetchContent = useCallback(async (pageNum: number, isNewSearch = false) => {
-    if (activeTab !== 'explore') return;
+    if (activeTab !== 'explore' || exploreMode === 'personalized') return;
 
     // Önceki isteği ağ seviyesinde iptal et
     if (abortControllerRef.current) {
@@ -192,7 +206,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
       const res = await fetch(`/api/tmdb?${proxyParams.toString()}`, {
         signal: controller.signal,
       });
-      
+
       if (currentRequestId !== requestIdRef.current) return;
 
       if (!res.ok) {
@@ -235,9 +249,8 @@ export function useTmdbExplore(activeTab: ActiveTab) {
     }
   }, [debouncedQuery, exploreMode, selectedMediaType, sortBy, selectedGenreId, minRating, selectedProviderId, isYearRangeActive, yearRange, activeTab]);
 
-  // Arama metni ve filtreler değiştiğinde tetikleme
   useEffect(() => {
-    if (activeTab !== 'explore') return;
+    if (activeTab !== 'explore' || exploreMode === 'personalized') return;
     setPage(1);
     fetchContent(1, true);
   }, [debouncedQuery, selectedMediaType, selectedGenreId, selectedProviderId, yearRange, minRating, sortBy, exploreMode, activeTab, fetchContent]);
