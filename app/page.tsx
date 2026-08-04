@@ -396,7 +396,7 @@ export default function Home() {
   const isSearchActive = explore.query.trim().length > 0;
 
   return (
-    <main className="min-h-dvh bg-background text-foreground font-sans p-4 sm:p-6 md:p-8 lg:p-10 relative pb-[calc(1rem+env(safe-area-inset-bottom))] flex flex-col justify-between">
+    <main className="min-h-dvh bg-background text-foreground font-sans p-4 sm:p-6 md:p-8 lg:p-10 relative pb-[calc(1rem+env(safe-area-inset-bottom))]">
       <AuthModal
         isOpen={auth.isAuthModalOpen}
         isInviteMode={auth.isInviteMode}
@@ -536,7 +536,7 @@ export default function Home() {
         </div>
       )}
 
-      <div className="max-w-7xl w-full mx-auto space-y-6 sm:space-y-8">
+      <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
         <header className="sticky top-0 z-40 bg-background/90 border-b border-border -mx-4 sm:-mx-6 md:-mx-8 lg:-mx-10 px-4 sm:px-6 md:px-8 lg:px-10 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all">
           <div className="flex items-center gap-3">
             <div className="relative w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 bg-accent/10 border border-accent/20 flex items-center justify-center p-1.5">
@@ -555,8 +555,32 @@ export default function Home() {
               />
             </div>
             
-            <div>
+            <div className="flex items-center gap-2.5">
               <h1 className="text-2xl font-bold tracking-tight text-foreground leading-none">Backstory</h1>
+              
+              <div className="flex items-center gap-1.5">
+                <a
+                  href="https://www.themoviedb.org/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="This product uses the TMDB API but is not endorsed or certified by TMDB."
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-card border border-border hover:border-border/80 transition-all opacity-80 hover:opacity-100"
+                >
+                  <img
+                    src="/tmdb-logo.svg"
+                    alt="TMDB Logo"
+                    className="h-3.5 w-auto object-contain"
+                  />
+                </a>
+
+                <button
+                  onClick={() => setIsPrivacyModalOpen(true)}
+                  title="Gizlilik & KVKK Aydınlatması"
+                  className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-accent hover:border-border/80 transition-all flex items-center justify-center"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1266,31 +1290,6 @@ export default function Home() {
           onSelectItem={handleSelectItem}
         />
       </div>
-
-      <footer className="mt-12 pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-muted-foreground max-w-7xl w-full mx-auto">
-        <div className="flex items-center gap-3">
-          <a
-            href="https://www.themoviedb.org/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-shrink-0 opacity-80 hover:opacity-100 transition-opacity"
-          >
-            <img
-              src="/tmdb-logo.svg"
-              alt="TMDB Logo"
-              className="h-3.5 w-auto object-contain"
-            />
-          </a>
-          <span>This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
-        </div>
-        
-        <button
-          onClick={() => setIsPrivacyModalOpen(true)}
-          className="hover:text-foreground underline transition-colors"
-        >
-          Gizlilik & KVKK
-        </button>
-      </footer>
     </main>
   );
 }
