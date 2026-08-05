@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// TypeScript'in 'process' sembolünü bulamadım hatasını kesmek için globalThis kullanımı
-const env = (globalThis as unknown as { process?: { env?: Record<string, string> } }).process?.env;
-const TMDB_API_KEY = env?.TMDB_API_KEY;
+const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
 const ALLOWED_PATTERNS = [
   /^\/search\/multi$/,
+  /^\/search\/(movie|tv)$/, // Ex: /search/movie veya /search/tv filtresi için 403 engelini çözer
   /^\/discover\/(movie|tv)$/,
   /^\/(movie|tv)\/\d+$/,
   /^\/(movie|tv)\/\d+\/recommendations$/,
