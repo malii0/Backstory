@@ -23,17 +23,18 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
   const topGenresStrRef = useRef<string>('');
 
   // 1. İLK YÜKLEME (Initial Fetch)
-  const fetchRecommendations = useCallback(async () => {
+  const fetchRecommendations = useCallback(async (_overrideLogs?: Record<string, LogMetadata>) => {
     setIsLoading(true);
     setError(null);
     poolIndexRef.current = 0;
     currentPageRef.current = 2;
 
     try {
+      const activeLogs = _overrideLogs || logs;
       const loggedIds = new Set<string>();
       const completedLogs: LogMetadata[] = [];
 
-      Object.entries(logs).forEach(([key, log]) => {
+      Object.entries(activeLogs).forEach(([key, log]) => {
         if (log.itemData?.id) {
           const type = log.itemData.media_type || 'movie';
           loggedIds.add(`${type}_${log.itemData.id}`);
@@ -241,7 +242,6 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
     const currentPool = fullPoolRef.current;
     const currentIndex = poolIndexRef.current;
 
-    // Havuzda hala gösterilmemiş 20'den fazla kart varsa doğrudan bas
     if (currentIndex + 20 <= currentPool.length) {
       const nextBatch = currentPool.slice(0, currentIndex + 20);
       setRecommendations(nextBatch);
@@ -250,7 +250,6 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
       return;
     }
 
-    // Havuz tükenmeye yakınsa arka planda sonraki TMDB sayfasını çek
     setIsFetchingMore(true);
     const nextPage = currentPageRef.current + 1;
 
@@ -272,7 +271,6 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
         ...(tvRes.results || []).map((t: MediaItem) => ({ ...t, media_type: 'tv' as const })),
       ];
 
-      // Zaten havuzda olanları veya izlenmiş olanları filtrele
       const existingKeys = new Set(fullPoolRef.current.map((i) => `${i.media_type}_${i.id}`));
       const freshItems: MediaItem[] = [];
 
@@ -297,7 +295,6 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
         poolIndexRef.current = currentIndex + 20;
         setHasMore(poolIndexRef.current < updatedPool.length);
       } else {
-        // Yeni içerik bulunamadıysa havuzda kalan son parçayı bas ve bitir
         if (currentIndex < currentPool.length) {
           setRecommendations(currentPool);
           poolIndexRef.current = currentPool.length;
@@ -320,7 +317,7 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
     hasFetched,
     hasMore,
     fetchRecommendations,
-    refreshRecommendations: fetchRecommendations, // page.tsx'teki TS2551 hatasını çözer
+    refreshRecommendations: fetchRecommendations,
     loadMore,
   };
 }

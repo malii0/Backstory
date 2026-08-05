@@ -37,7 +37,7 @@ export default function Home() {
 
   // Toast & Undo State
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const modalSearchInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -250,18 +250,37 @@ const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     }
   };
 
+  // Scroll ile Sayfalama / Infinite Scroll
   const handleScroll = useCallback(() => {
-    if (activeTab !== 'explore' || explore.exploreMode === 'personalized' || explore.isLoading || explore.isFetchingMore || !explore.hasMore) return;
+    if (activeTab !== 'explore') return;
 
     if (
       window.innerHeight + document.documentElement.scrollTop >=
       document.documentElement.offsetHeight - 500
     ) {
-      const nextPage = explore.page + 1;
-      explore.setPage(nextPage);
-      explore.fetchContent(nextPage);
+      if (explore.exploreMode === 'personalized') {
+        if (!recommendations.isFetchingMore && recommendations.hasMore) {
+          recommendations.loadMore();
+        }
+      } else {
+        if (!explore.isLoading && !explore.isFetchingMore && explore.hasMore) {
+          const nextPage = explore.page + 1;
+          explore.setPage(nextPage);
+          explore.fetchContent(nextPage);
+        }
+      }
     }
-  }, [activeTab, explore.exploreMode, explore.isLoading, explore.isFetchingMore, explore.hasMore, explore.page, explore.fetchContent, explore.setPage]);
+  }, [
+    activeTab,
+    explore.exploreMode,
+    explore.isLoading,
+    explore.isFetchingMore,
+    explore.hasMore,
+    explore.page,
+    explore.fetchContent,
+    explore.setPage,
+    recommendations,
+  ]);
 
   useEffect(() => {
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -1203,10 +1222,10 @@ const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
               {activeTab === 'explore' && explore.exploreMode === 'personalized' && (
                 <button
-                  onClick={recommendations.refreshRecommendations}
+                  onClick={() => recommendations.fetchRecommendations()}
                   className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
                 >
-                  <RefreshCw className="w-3.5 h-3.5" /> Başka Öneriler Getir
+                  <RefreshCw className="w-3.5 h-3.5" /> Yeniden Hesapla
                 </button>
               )}
 
@@ -1298,11 +1317,23 @@ const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
               </>
             )}
 
-            {explore.isFetchingMore && explore.exploreMode !== 'personalized' && (
+            {/* Yükleme ve Bitiş Durumu Metinleri */}
+            {((explore.isFetchingMore && explore.exploreMode !== 'personalized') ||
+              (recommendations.isFetchingMore && explore.exploreMode === 'personalized')) && (
               <div className="text-center py-6 text-muted-foreground text-xs animate-pulse">
                 Daha fazla içerik yükleniyor...
               </div>
             )}
+
+            {activeTab === 'explore' &&
+              explore.exploreMode === 'personalized' &&
+              !recommendations.isLoading &&
+              !recommendations.hasMore &&
+              displayedItems.length > 0 && (
+                <div className="text-center py-8 text-muted-foreground/60 text-xs font-medium">
+                  Sana özel tüm önerileri gördün.
+                </div>
+              )}
           </section>
         )}
 
