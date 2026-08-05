@@ -11,9 +11,18 @@ export async function POST(req: Request) {
   try {
     const { watchlist = [], favorites = [], loggedKeys = [] } = await req.json();
 
+    // Guard Clause: Kullanıcının verisi tamamen boşsa API çağrısı yapmadan güvenli dön
+    if (watchlist.length === 0 && favorites.length === 0) {
+      return NextResponse.json({
+        rationale: "Öneri oluşturabilmek için profilinize en az bir film/dizi ekleyin veya puanlayın.",
+        matchedKeywords: [],
+        recommendedItems: [],
+      });
+    }
+
     // Pass 1: Zod Şeması ile Garantili Keyword Çıkarımı
     const pass1Result = await generateObject({
-      model: google('gemini-2.5-flash'),
+      model: google('gemini-3.6-flash'), // Tek tip güncel model ismi
       schema: z.object({
         keywords: z.array(z.string()).describe('3 to 4 concise TMDB search keywords representing user taste'),
       }),
@@ -100,7 +109,7 @@ Extract 3 to 4 concise TMDB search keywords (genres, themes, or tropes) represen
     }));
 
     const pass2Result = await generateObject({
-      model: google('gemini-2.5-flash'),
+      model: google('gemini-3.6-flash'),
       schema: z.object({
         reasons: z.array(
           z.object({
@@ -139,6 +148,11 @@ For EACH candidate, explain in EXACTLY 1 concise sentence why it matches the use
       recommendedItems,
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'AI Insight hatası oluştu' }, { status: 500 });
+    // Vercel Runtime Logs ekranında hatanın kök sebebini görebilmek için
+    console.error("AI RECOMMEND API ERROR DETAILS:", error);
+    return NextResponse.json(
+      { error: error?.message || 'AI Insight hatası oluştu' },
+      { status: 500 }
+    );
   }
 }
