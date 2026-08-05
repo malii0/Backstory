@@ -68,7 +68,8 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
             media_type: item.media_type || 'movie',
             recommendationSource: 'wildcard' as const,
             matchScore: (item.vote_average || 5) + 40,
-          }));
+          }))
+          .sort((a: MediaItem, b: MediaItem) => (b.matchScore || 0) - (a.matchScore || 0));
 
         fullPoolRef.current = filtered;
         setRecommendations(filtered.slice(0, 20));
