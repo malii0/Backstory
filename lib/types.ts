@@ -106,3 +106,19 @@ export interface ActivityFeedItem {
 }
 
 export type ActiveTab = 'explore' | 'completed' | 'watchlist' | 'stats' | 'feed';
+
+export interface AIInsightItem {
+  id: number;
+  title: string;
+  media_type: 'movie' | 'tv';
+  poster_path: string | null;
+  vote_average: number;
+  overview: string;
+  reason?: string;
+}
+
+export interface AIInsightResponse {
+  rationale: string;
+  matchedKeywords: string[];
+  recommendedItems: AIInsightItem[];
+}
