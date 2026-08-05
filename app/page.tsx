@@ -103,7 +103,7 @@ const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Sana Özel butonuna tıklama mantığı (Lazy)
   const handleSelectPersonalized = () => {
     explore.setExploreMode('personalized');
-    recommendations.fetchRecommendations(false);
+    recommendations.fetchRecommendations();
   };
 
   // Platform Filtresi Seçildiğinde Kontrollü Batch Fetching (N+1 Önlemi)
@@ -1229,7 +1229,7 @@ const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
                 <button
                   onClick={() => {
                     if (explore.exploreMode === 'personalized') {
-                      recommendations.fetchRecommendations(true);
+                      recommendations.fetchRecommendations();
                     } else {
                       explore.fetchContent(1, true);
                     }

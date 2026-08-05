@@ -320,6 +320,7 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
     hasFetched,
     hasMore,
     fetchRecommendations,
+    refreshRecommendations: fetchRecommendations, // page.tsx'teki TS2551 hatasını çözer
     loadMore,
   };
 }
