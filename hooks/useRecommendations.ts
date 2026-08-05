@@ -18,16 +18,16 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
 
   const fullPoolRef = useRef<MediaItem[]>([]);
   const poolIndexRef = useRef<number>(0);
-  const currentPageRef = useRef<number>(2); // 1 ve 2. sayfalar ilk istekte çekiliyor
+  const currentPageRef = useRef<number>(2); // Cold-start için 1, normal akış için 2. sayfadan devam eder
   const loggedIdsRef = useRef<Set<string>>(new Set());
   const topGenresStrRef = useRef<string>('');
+  const isColdStartRef = useRef<boolean>(false); // Cold-start modunu takip eden ref
 
   // 1. İLK YÜKLEME (Initial Fetch)
   const fetchRecommendations = useCallback(async (_overrideLogs?: Record<string, LogMetadata>) => {
     setIsLoading(true);
     setError(null);
     poolIndexRef.current = 0;
-    currentPageRef.current = 2;
 
     try {
       const activeLogs = _overrideLogs || logs;
@@ -49,9 +49,12 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
 
       loggedIdsRef.current = loggedIds;
 
-      // Cold Start Fallback
+      // Cold Start Fallback (3'ten az tamamlanmış içerik varsa)
       if (completedLogs.length < 3) {
-        const res = await fetch('/api/tmdb?endpoint=/trending/all/week');
+        isColdStartRef.current = true;
+        currentPageRef.current = 1;
+
+        const res = await fetch('/api/tmdb?endpoint=/trending/all/week&page=1');
         if (!res.ok) throw new Error('Trend verileri alınamadı.');
         const data = await res.json();
 
@@ -76,7 +79,10 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
         return;
       }
 
-      // Kullanıcı Profilleme
+      // Normal Akış (Yeterli Kişiselleştirme Verisi Var)
+      isColdStartRef.current = false;
+      currentPageRef.current = 2; // 1 ve 2. sayfalar paralel çekiliyor
+
       const scoredItems: ScoredLogItem[] = completedLogs.map((log) => {
         const item = log.itemData!;
         const type = (item.media_type || 'movie') as 'movie' | 'tv';
@@ -242,6 +248,7 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
     const currentPool = fullPoolRef.current;
     const currentIndex = poolIndexRef.current;
 
+    // Havuzda hala gösterilmemiş eleman varsa 20'şerli dilim bas
     if (currentIndex + 20 <= currentPool.length) {
       const nextBatch = currentPool.slice(0, currentIndex + 20);
       setRecommendations(nextBatch);
@@ -254,36 +261,57 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
     const nextPage = currentPageRef.current + 1;
 
     try {
-      const topGenresStr = topGenresStrRef.current;
       const loggedIds = loggedIdsRef.current;
-
-      const [movieRes, tvRes] = await Promise.all([
-        fetch(
-          `/api/tmdb?endpoint=/discover/movie&with_genres=${topGenresStr}&sort_by=vote_average.desc&vote_count.gte=200&page=${nextPage}`
-        ).then((r) => (r.ok ? r.json() : { results: [] })),
-        fetch(
-          `/api/tmdb?endpoint=/discover/tv&with_genres=${topGenresStr}&sort_by=vote_average.desc&vote_count.gte=200&page=${nextPage}`
-        ).then((r) => (r.ok ? r.json() : { results: [] })),
-      ]);
-
-      const newResults: MediaItem[] = [
-        ...(movieRes.results || []).map((m: MediaItem) => ({ ...m, media_type: 'movie' as const })),
-        ...(tvRes.results || []).map((t: MediaItem) => ({ ...t, media_type: 'tv' as const })),
-      ];
-
       const existingKeys = new Set(fullPoolRef.current.map((i) => `${i.media_type}_${i.id}`));
       const freshItems: MediaItem[] = [];
 
-      newResults.forEach((item) => {
-        const key = `${item.media_type}_${item.id}`;
-        if (!loggedIds.has(key) && !existingKeys.has(key)) {
-          freshItems.push({
-            ...item,
-            recommendationSource: 'genre',
-            matchScore: 70 + (item.vote_average || 0) * 2,
+      // Cold Start Dalı (Trendlerin Sonraki Sayfası)
+      if (isColdStartRef.current) {
+        const res = await fetch(`/api/tmdb?endpoint=/trending/all/week&page=${nextPage}`);
+        if (res.ok) {
+          const data = await res.json();
+          (data.results || []).forEach((item: MediaItem) => {
+            const type = item.media_type || 'movie';
+            const key = `${type}_${item.id}`;
+            if (!loggedIds.has(key) && !existingKeys.has(key)) {
+              freshItems.push({
+                ...item,
+                media_type: type,
+                recommendationSource: 'wildcard',
+                matchScore: (item.vote_average || 5) + 40,
+              });
+            }
           });
         }
-      });
+      } else {
+        // Normal Kişiselleştirilmiş Akış Dalı
+        const topGenresStr = topGenresStrRef.current;
+
+        const [movieRes, tvRes] = await Promise.all([
+          fetch(
+            `/api/tmdb?endpoint=/discover/movie&with_genres=${topGenresStr}&sort_by=vote_average.desc&vote_count.gte=200&page=${nextPage}`
+          ).then((r) => (r.ok ? r.json() : { results: [] })),
+          fetch(
+            `/api/tmdb?endpoint=/discover/tv&with_genres=${topGenresStr}&sort_by=vote_average.desc&vote_count.gte=200&page=${nextPage}`
+          ).then((r) => (r.ok ? r.json() : { results: [] })),
+        ]);
+
+        const newResults: MediaItem[] = [
+          ...(movieRes.results || []).map((m: MediaItem) => ({ ...m, media_type: 'movie' as const })),
+          ...(tvRes.results || []).map((t: MediaItem) => ({ ...t, media_type: 'tv' as const })),
+        ];
+
+        newResults.forEach((item) => {
+          const key = `${item.media_type}_${item.id}`;
+          if (!loggedIds.has(key) && !existingKeys.has(key)) {
+            freshItems.push({
+              ...item,
+              recommendationSource: 'genre',
+              matchScore: 70 + (item.vote_average || 0) * 2,
+            });
+          }
+        });
+      }
 
       if (freshItems.length > 0) {
         currentPageRef.current = nextPage;
