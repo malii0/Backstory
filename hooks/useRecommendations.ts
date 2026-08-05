@@ -17,7 +17,6 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
   const fullPoolRef = useRef<MediaItem[]>([]);
   const poolIndexRef = useRef<number>(0);
 
-  // Havuzdan sıradaki 20 en yüksek skorlu kartı alan fonksiyon
   const getNextBatchFromPool = useCallback(() => {
     const pool = fullPoolRef.current;
     if (pool.length === 0) return [];
@@ -36,7 +35,6 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
 
   const fetchRecommendations = useCallback(
     async (forceNewFetch = false) => {
-      // 1. BUTON TIKLAMASI (Hafızadan Sonraki 20'liği Getir)
       if (!forceNewFetch && fullPoolRef.current.length > 0) {
         const nextBatch = getNextBatchFromPool();
         setRecommendations(nextBatch);
@@ -47,25 +45,22 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
       setError(null);
 
       try {
-        // İZLENMİŞ VE LİSTEDEKİ TÜM İÇERİKLERİ FİLTRELEME İÇİN TOPLA
         const loggedIds = new Set<string>();
         const completedLogs: LogMetadata[] = [];
 
         Object.entries(logs).forEach(([key, log]) => {
-          // Hem key hem de log içindeki itemData'dan ID ekle
           if (log.itemData?.id) {
             const type = log.itemData.media_type || 'movie';
             loggedIds.add(`${type}_${log.itemData.id}`);
-            loggedIds.add(`${log.itemData.id}`); // Type'sız yedek ID
+          } else {
+            loggedIds.add(key);
           }
-          loggedIds.add(key); // Anahtar string (örn: movie_123)
 
           if (log.isCompleted) {
             completedLogs.push(log);
           }
         });
 
-        // COLD START FALLBACK: 3'ten az izleme varsa Trendleri çek
         if (completedLogs.length < 3) {
           const res = await fetch('/api/tmdb?endpoint=/trending/all/week');
           if (!res.ok) throw new Error('Trend verileri alınamadı.');
@@ -74,7 +69,7 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
           const filtered = (data.results || [])
             .filter((item: MediaItem) => {
               const type = item.media_type || 'movie';
-              return !loggedIds.has(`${type}_${item.id}`) && !loggedIds.has(`${item.id}`);
+              return !loggedIds.has(`${type}_${item.id}`);
             })
             .map((item: MediaItem) => ({
               ...item,
@@ -92,7 +87,6 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
           return;
         }
 
-        // 1. KULLANICI TERCİH SKORLAMASI
         const scoredItems: ScoredLogItem[] = completedLogs.map((log) => {
           const item = log.itemData!;
           const type = (item.media_type || 'movie') as 'movie' | 'tv';
@@ -117,9 +111,8 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
 
         scoredItems.sort((a, b) => b.weight - a.weight);
         
-        // En yüksek puanlı ve en son izlenen içeriklerden karma hedef liste
-        const topAllTime = [...scoredItems].slice(0, 2);
-        const targetLogs = topAllTime;
+        // Ağırlığı en yüksek ilk 2 içeriği Hedef Seçim (Kol A) olarak belirle
+        const targetLogs = scoredItems.slice(0, 2);
 
         const genreWeights: Record<number, number> = {};
         scoredItems.forEach((si) => {
@@ -134,7 +127,6 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
 
         const topGenresStr = sortedGenres.slice(0, 2).join(',');
 
-        // 2. PARALEL İSTEKLER
         const fetchPromises: Promise<{
           results: MediaItem[];
           source: 'similar' | 'genre' | 'wildcard';
@@ -155,37 +147,39 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
           );
         });
 
-        // Kol B: Tür İçerikleri
+        // Kol B: Tür İçerikleri (Daha geniş havuz için 1. ve 2. sayfaları çek)
         const rawGenreWeight = sortedGenres.length > 0 ? (genreWeights[sortedGenres[0]] || 1) : 1;
         const normalizedGenreBonus = Math.min(rawGenreWeight * 3, 30);
 
-        fetchPromises.push(
-          fetch(
-            `/api/tmdb?endpoint=/discover/movie&with_genres=${topGenresStr}&sort_by=vote_average.desc&vote_count.gte=200`
-          )
-            .then((r) => (r.ok ? r.json() : { results: [] }))
-            .then((d) => ({
-              results: d.results || [],
-              source: 'genre' as const,
-              sourceWeight: 70 + normalizedGenreBonus,
-            }))
-            .catch(() => ({ results: [], source: 'genre' as const, sourceWeight: 70 }))
-        );
+        [1, 2].forEach((page) => {
+          fetchPromises.push(
+            fetch(
+              `/api/tmdb?endpoint=/discover/movie&with_genres=${topGenresStr}&sort_by=vote_average.desc&vote_count.gte=200&page=${page}`
+            )
+              .then((r) => (r.ok ? r.json() : { results: [] }))
+              .then((d) => ({
+                results: d.results || [],
+                source: 'genre' as const,
+                sourceWeight: 70 + normalizedGenreBonus,
+              }))
+              .catch(() => ({ results: [], source: 'genre' as const, sourceWeight: 70 }))
+          );
 
-        fetchPromises.push(
-          fetch(
-            `/api/tmdb?endpoint=/discover/tv&with_genres=${topGenresStr}&sort_by=vote_average.desc&vote_count.gte=200`
-          )
-            .then((r) => (r.ok ? r.json() : { results: [] }))
-            .then((d) => ({
-              results: d.results || [],
-              source: 'genre' as const,
-              sourceWeight: 70 + normalizedGenreBonus,
-            }))
-            .catch(() => ({ results: [], source: 'genre' as const, sourceWeight: 70 }))
-        );
+          fetchPromises.push(
+            fetch(
+              `/api/tmdb?endpoint=/discover/tv&with_genres=${topGenresStr}&sort_by=vote_average.desc&vote_count.gte=200&page=${page}`
+            )
+              .then((r) => (r.ok ? r.json() : { results: [] }))
+              .then((d) => ({
+                results: d.results || [],
+                source: 'genre' as const,
+                sourceWeight: 70 + normalizedGenreBonus,
+              }))
+              .catch(() => ({ results: [], source: 'genre' as const, sourceWeight: 70 }))
+          );
+        });
 
-        // Wildcard
+        // Kol C: Wildcard / Trendler
         fetchPromises.push(
           fetch(`/api/tmdb?endpoint=/trending/all/week`)
             .then((r) => (r.ok ? r.json() : { results: [] }))
@@ -195,7 +189,6 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
 
         const responses = await Promise.all(fetchPromises);
 
-        // 3. FİLTRELEME VE TEKİLLEŞTİRME
         const uniqueMap = new Map<string, MediaItem>();
 
         const SOURCE_PRIORITY: Record<'similar' | 'genre' | 'wildcard', number> = {
@@ -209,10 +202,9 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
             if (!item || !item.id) return;
             const type = item.media_type || (item.title ? 'movie' : 'tv');
             const key = `${type}_${item.id}`;
-            const rawIdKey = `${item.id}`;
 
-            // KULLANICI LİSTESİNDE VARSA KESİNLİKLE ATLA
-            if (loggedIds.has(key) || loggedIds.has(rawIdKey)) return;
+            // Sadece type_id kontrolü (Strict Matching)
+            if (loggedIds.has(key)) return;
 
             const calculatedScore = sourceWeight + (item.vote_average || 0) * 2;
 
@@ -241,7 +233,6 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
           });
         });
 
-        // 4. SIRALAMA VE İLK SLICE
         const pool = Array.from(uniqueMap.values()).sort(
           (a, b) => (b.matchScore || 0) - (a.matchScore || 0)
         );
@@ -268,6 +259,6 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
     error,
     hasFetched,
     fetchRecommendations,
-    refreshRecommendations: () => fetchRecommendations(false), // Butona basıldığında sonraki 20'liği getirir
+    refreshRecommendations: () => fetchRecommendations(false),
   };
 }
