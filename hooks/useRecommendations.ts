@@ -17,6 +17,7 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
   const fullPoolRef = useRef<MediaItem[]>([]);
   const poolIndexRef = useRef<number>(0);
 
+  // Havuzdan sıradaki 20 en yüksek skorlu kartı alan fonksiyon
   const getNextBatchFromPool = useCallback(() => {
     const pool = fullPoolRef.current;
     if (pool.length === 0) return [];
@@ -35,6 +36,7 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
 
   const fetchRecommendations = useCallback(
     async (forceNewFetch = false) => {
+      // 1. BUTON TIKLAMASI (Hafızadan Sonraki 20'liği Getir)
       if (!forceNewFetch && fullPoolRef.current.length > 0) {
         const nextBatch = getNextBatchFromPool();
         setRecommendations(nextBatch);
@@ -45,13 +47,18 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
       setError(null);
 
       try {
+        // İZLENMİŞ VE LİSTEDEKİ TÜM İÇERİKLERİ FİLTRELEME İÇİN TOPLA
         const loggedIds = new Set<string>();
         const completedLogs: LogMetadata[] = [];
 
-        Object.values(logs).forEach((log) => {
-          if (!log.itemData?.id) return;
-          const type = log.itemData.media_type || 'movie';
-          loggedIds.add(`${type}_${log.itemData.id}`);
+        Object.entries(logs).forEach(([key, log]) => {
+          // Hem key hem de log içindeki itemData'dan ID ekle
+          if (log.itemData?.id) {
+            const type = log.itemData.media_type || 'movie';
+            loggedIds.add(`${type}_${log.itemData.id}`);
+            loggedIds.add(`${log.itemData.id}`); // Type'sız yedek ID
+          }
+          loggedIds.add(key); // Anahtar string (örn: movie_123)
 
           if (log.isCompleted) {
             completedLogs.push(log);
@@ -65,7 +72,10 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
           const data = await res.json();
 
           const filtered = (data.results || [])
-            .filter((item: MediaItem) => !loggedIds.has(`${item.media_type || 'movie'}_${item.id}`))
+            .filter((item: MediaItem) => {
+              const type = item.media_type || 'movie';
+              return !loggedIds.has(`${type}_${item.id}`) && !loggedIds.has(`${item.id}`);
+            })
             .map((item: MediaItem) => ({
               ...item,
               media_type: item.media_type || 'movie',
@@ -82,13 +92,12 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
           return;
         }
 
-        // 1. ÖRTÜLÜ SKORLAMA (Kullanıcı Tercihleri)
+        // 1. KULLANICI TERCİH SKORLAMASI
         const scoredItems: ScoredLogItem[] = completedLogs.map((log) => {
           const item = log.itemData!;
           const type = (item.media_type || 'movie') as 'movie' | 'tv';
 
           let baseWeight = 1.0;
-
           if (log.rating && log.rating > 0) {
             baseWeight += (log.rating - 5) * 0.2;
           }
@@ -107,7 +116,10 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
         });
 
         scoredItems.sort((a, b) => b.weight - a.weight);
-        const topItems = scoredItems.slice(0, 3);
+        
+        // En yüksek puanlı ve en son izlenen içeriklerden karma hedef liste
+        const topAllTime = [...scoredItems].slice(0, 2);
+        const targetLogs = topAllTime;
 
         const genreWeights: Record<number, number> = {};
         scoredItems.forEach((si) => {
@@ -122,15 +134,15 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
 
         const topGenresStr = sortedGenres.slice(0, 2).join(',');
 
-        // 2. PARALEL TMDB İSTEKLERİ
+        // 2. PARALEL İSTEKLER
         const fetchPromises: Promise<{
           results: MediaItem[];
           source: 'similar' | 'genre' | 'wildcard';
           sourceWeight: number;
         }>[] = [];
 
-        // Kol A: Benzer İçerikler (Taban: 100, Max Log Bonusu: +30)
-        topItems.forEach((item) => {
+        // Kol A: Benzer İçerikler
+        targetLogs.forEach((item) => {
           fetchPromises.push(
             fetch(`/api/tmdb?endpoint=/${item.type}/${item.id}/recommendations`)
               .then((r) => (r.ok ? r.json() : { results: [] }))
@@ -143,7 +155,7 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
           );
         });
 
-        // Kol B: Tür Bazlı İçerikler (Taban: 70, Tavan Bonusu: Max +30)
+        // Kol B: Tür İçerikleri
         const rawGenreWeight = sortedGenres.length > 0 ? (genreWeights[sortedGenres[0]] || 1) : 1;
         const normalizedGenreBonus = Math.min(rawGenreWeight * 3, 30);
 
@@ -173,7 +185,7 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
             .catch(() => ({ results: [], source: 'genre' as const, sourceWeight: 70 }))
         );
 
-        // Wildcard (Taban: 40)
+        // Wildcard
         fetchPromises.push(
           fetch(`/api/tmdb?endpoint=/trending/all/week`)
             .then((r) => (r.ok ? r.json() : { results: [] }))
@@ -183,10 +195,9 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
 
         const responses = await Promise.all(fetchPromises);
 
-        // 3. AĞIRLIKLI SKORLAMA, ÇİFTE KAYNAK BONUSU VE ÖNCELİKLİ TEKİLLEŞTİRME
+        // 3. FİLTRELEME VE TEKİLLEŞTİRME
         const uniqueMap = new Map<string, MediaItem>();
 
-        // Kaynak Rozeti Öncelik Haritası (Big Rank = Higher Priority)
         const SOURCE_PRIORITY: Record<'similar' | 'genre' | 'wildcard', number> = {
           similar: 3,
           genre: 2,
@@ -198,38 +209,39 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
             if (!item || !item.id) return;
             const type = item.media_type || (item.title ? 'movie' : 'tv');
             const key = `${type}_${item.id}`;
+            const rawIdKey = `${item.id}`;
 
-            if (!loggedIds.has(key)) {
-              const calculatedScore = sourceWeight + (item.vote_average || 0) * 2;
+            // KULLANICI LİSTESİNDE VARSA KESİNLİKLE ATLA
+            if (loggedIds.has(key) || loggedIds.has(rawIdKey)) return;
 
-              if (uniqueMap.has(key)) {
-                const existing = uniqueMap.get(key)!;
-                const newScore = Math.max(existing.matchScore || 0, calculatedScore) + 15;
+            const calculatedScore = sourceWeight + (item.vote_average || 0) * 2;
 
-                // Mevcut kaynağın önceliği ile gelen yeni kaynağın önceliğini kıyasla
-                const existingPriority = SOURCE_PRIORITY[existing.recommendationSource || 'wildcard'];
-                const incomingPriority = SOURCE_PRIORITY[source];
+            if (uniqueMap.has(key)) {
+              const existing = uniqueMap.get(key)!;
+              const newScore = Math.max(existing.matchScore || 0, calculatedScore) + 15;
 
-                const winningSource = incomingPriority > existingPriority ? source : existing.recommendationSource;
+              const existingPriority = SOURCE_PRIORITY[existing.recommendationSource || 'wildcard'];
+              const incomingPriority = SOURCE_PRIORITY[source];
 
-                uniqueMap.set(key, {
-                  ...existing,
-                  recommendationSource: winningSource,
-                  matchScore: newScore,
-                });
-              } else {
-                uniqueMap.set(key, {
-                  ...item,
-                  media_type: type,
-                  recommendationSource: source,
-                  matchScore: calculatedScore,
-                });
-              }
+              const winningSource = incomingPriority > existingPriority ? source : existing.recommendationSource;
+
+              uniqueMap.set(key, {
+                ...existing,
+                recommendationSource: winningSource,
+                matchScore: newScore,
+              });
+            } else {
+              uniqueMap.set(key, {
+                ...item,
+                media_type: type,
+                recommendationSource: source,
+                matchScore: calculatedScore,
+              });
             }
           });
         });
 
-        // 4. HAVUZU KESİN SIRALAMA
+        // 4. SIRALAMA VE İLK SLICE
         const pool = Array.from(uniqueMap.values()).sort(
           (a, b) => (b.matchScore || 0) - (a.matchScore || 0)
         );
@@ -256,6 +268,6 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
     error,
     hasFetched,
     fetchRecommendations,
-    refreshRecommendations: () => fetchRecommendations(false),
+    refreshRecommendations: () => fetchRecommendations(false), // Butona basıldığında sonraki 20'liği getirir
   };
 }
