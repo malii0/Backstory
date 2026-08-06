@@ -21,7 +21,7 @@ export async function POST(req: Request) {
 
     // Pass 1: Doğrudan Somut Yapım Başlıkları İsteme (12 adet yedekli istek)
     const pass1Result = await generateObject({
-      model: google('gemini-2.5-flash'),
+      model: google('gemini-3.6-flash'),
       schema: z.object({
         keywords: z.array(z.string()).describe('3 to 4 concise theme keywords representing user taste'),
         suggestions: z.array(
