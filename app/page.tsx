@@ -703,6 +703,9 @@ export default function Home() {
             logs={logsManager.logs}
             onNavigateToExplore={() => setActiveTab('explore')}
             onOpenRatingManager={() => setIsRatingManagerOpen(true)}
+            onSelectItem={handleSelectItem}
+            onToggleCompleted={handleToggleCompleted}
+            onToggleWatchlist={handleToggleWatchlist}
           />
         ) : activeTab === 'feed' ? (
           <ActivityFeed
