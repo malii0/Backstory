@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { X, Star, Search, Film, Trash2 } from 'lucide-react';
 import { LogMetadata, MediaItem } from '@/lib/types';
 
@@ -27,36 +27,8 @@ export default function RatingManagerModal({
   const [ratingFilter, setRatingFilter] = useState<RatingFilter>('all');
   const [sortBy, setSortBy] = useState<SortOption>('rating.desc');
 
-  // Modal açık olduğu sürece görsel sırayı sabitlemek için snapshot ref'i
-  const frozenOrderRef = useRef<string[] | null>(null);
-
-  // Modal kapandığında dondurulmuş sırayı sıfırla
-  useEffect(() => {
-    if (!isOpen) {
-      frozenOrderRef.current = null;
-    }
-  }, [isOpen]);
-
-  // Filtreler (arama, sıralama, medya türü vs.) değiştiğinde sıranın yeniden hesaplanabilmesi için reset
-  const handleSortChange = (newSort: SortOption) => {
-    frozenOrderRef.current = null;
-    setSortBy(newSort);
-  };
-
-  const handleRatingFilterChange = (newFilter: RatingFilter) => {
-    frozenOrderRef.current = null;
-    setRatingFilter(newFilter);
-  };
-
-  const handleMediaTypeChange = (type: 'all' | 'movie' | 'tv') => {
-    frozenOrderRef.current = null;
-    setSelectedMediaType(type);
-  };
-
-  const handleSearchChange = (query: string) => {
-    frozenOrderRef.current = null;
-    setSearchQuery(query);
-  };
+  // Modal açık olduğu sürece kilitli kalacak eleman KEY sırası
+  const [frozenKeys, setFrozenKeys] = useState<string[]>([]);
 
   // Watchlist'te OLMAYAN ve geçerli verisi olan loglar
   const validLogs = useMemo(() => {
@@ -65,13 +37,68 @@ export default function RatingManagerModal({
     );
   }, [logs]);
 
+  // Modal ilk açıldığında veya Filtre/Sıralama türü değiştiğinde SRANIN SNAPSHOT'INI AL
+  useEffect(() => {
+    if (!isOpen) {
+      setFrozenKeys([]);
+      return;
+    }
+
+    // Eğer zaten kilitlenmiş bir sıramız varsa ve kullanıcı manuel filtre değiştirmediyse sırayı bozma
+    if (frozenKeys.length > 0) return;
+
+    // Doğal Sıralamayı Hesapla
+    const sorted = validLogs.map(([key, log]) => ({ key, log, item: log.itemData! }));
+
+    sorted.sort((a, b) => {
+      if (sortBy === 'rating.desc') {
+        if (b.log.rating === a.log.rating) {
+          return (b.log.updatedAt || 0) - (a.log.updatedAt || 0);
+        }
+        return b.log.rating - a.log.rating;
+      }
+      if (sortBy === 'rating.asc') {
+        if (a.log.rating === b.log.rating) {
+          return (b.log.updatedAt || 0) - (a.log.updatedAt || 0);
+        }
+        return a.log.rating - b.log.rating;
+      }
+      if (sortBy === 'title.asc') {
+        const titleA = a.item.title || a.item.name || '';
+        const titleB = b.item.title || b.item.name || '';
+        return titleA.localeCompare(titleB, 'tr');
+      }
+      return (b.log.updatedAt || 0) - (a.log.updatedAt || 0);
+    });
+
+    setFrozenKeys(sorted.map((i) => i.key));
+  }, [isOpen, sortBy, ratingFilter, selectedMediaType]);
+
+  // Filtre/Sıralama değişimlerinde kilitli sırayı sıfırlayıp yeniden hesaplatma tetikleyicileri
+  const handleSortChange = (newSort: SortOption) => {
+    setFrozenKeys([]);
+    setSortBy(newSort);
+  };
+
+  const handleRatingFilterChange = (newFilter: RatingFilter) => {
+    setFrozenKeys([]);
+    setRatingFilter(newFilter);
+  };
+
+  const handleMediaTypeChange = (type: 'all' | 'movie' | 'tv') => {
+    setFrozenKeys([]);
+    setSelectedMediaType(type);
+  };
+
   const filteredLogs = useMemo(() => {
+    // 1. Güncel log verileriyle eşleştir
     let list = validLogs.map(([key, log]) => ({
       key,
       log,
       item: log.itemData!,
     }));
 
+    // 2. Arama ve Kategori Filtrelerini Uygula
     if (ratingFilter === 'rated') {
       list = list.filter(({ log }) => log.rating > 0);
     } else if (ratingFilter === 'unrated') {
@@ -90,34 +117,9 @@ export default function RatingManagerModal({
       list = list.filter(({ item }) => item.media_type === selectedMediaType);
     }
 
-    // Eğer bu modal oturumunda henüz bir sıra dondurulmadıysa doğal sıralamayı yap ve dondur
-    if (!frozenOrderRef.current) {
-      list.sort((a, b) => {
-        if (sortBy === 'rating.desc') {
-          if (b.log.rating === a.log.rating) {
-            return (b.log.updatedAt || 0) - (a.log.updatedAt || 0);
-          }
-          return b.log.rating - a.log.rating;
-        }
-        if (sortBy === 'rating.asc') {
-          if (a.log.rating === b.log.rating) {
-            return (b.log.updatedAt || 0) - (a.log.updatedAt || 0);
-          }
-          return a.log.rating - b.log.rating;
-        }
-        if (sortBy === 'title.asc') {
-          const titleA = a.item.title || a.item.name || '';
-          const titleB = b.item.title || b.item.name || '';
-          return titleA.localeCompare(titleB, 'tr');
-        }
-        return (b.log.updatedAt || 0) - (a.log.updatedAt || 0);
-      });
-
-      // Sıralama yapıldıktan sonra key sırasını ref'e kaydet
-      frozenOrderRef.current = list.map((item) => item.key);
-    } else {
-      // Dondurulmuş bir sıra varsa, elemanları o sıraya göre diz (puan değişse bile yerleri sabit kalır)
-      const orderMap = new Map(frozenOrderRef.current.map((k, idx) => [k, idx]));
+    // 3. Kilitlenmiş anahtar sırasına (frozenKeys) göre diz
+    if (frozenKeys.length > 0) {
+      const orderMap = new Map(frozenKeys.map((k, idx) => [k, idx]));
       list.sort((a, b) => {
         const indexA = orderMap.get(a.key) ?? 999999;
         const indexB = orderMap.get(b.key) ?? 999999;
@@ -126,7 +128,7 @@ export default function RatingManagerModal({
     }
 
     return list;
-  }, [validLogs, searchQuery, selectedMediaType, ratingFilter, sortBy]);
+  }, [validLogs, searchQuery, selectedMediaType, ratingFilter, frozenKeys]);
 
   const ratedCount = useMemo(
     () => validLogs.filter(([_, l]) => l.rating > 0).length,
@@ -176,13 +178,13 @@ export default function RatingManagerModal({
               type="text"
               placeholder="Listendeki film veya dizilerde ara..."
               value={searchQuery}
-              onChange={(e) => handleSearchChange(e.target.value)}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-card border border-border rounded-xl py-2 pl-9 pr-8 text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:border-accent/50 transition-all"
             />
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             {searchQuery && (
               <button
-                onClick={() => handleSearchChange('')}
+                onClick={() => setSearchQuery('')}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 <X className="w-3.5 h-3.5" />
