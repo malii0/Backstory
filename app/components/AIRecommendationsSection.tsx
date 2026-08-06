@@ -36,7 +36,7 @@ export default function AIRecommendationsSection({
   };
 
   return (
-    <section className="my-6 p-6 bg-card/80 border border-border/80 rounded-3xl space-y-4 shadow-sm">
+    <section className="my-6 p-4 sm:p-6 bg-card/80 border border-border/80 rounded-3xl space-y-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-purple-400" />
@@ -70,7 +70,7 @@ export default function AIRecommendationsSection({
 
       {data && (
         <div className="space-y-4 pt-2">
-          <div className="p-3.5 bg-background/60 border border-border/60 rounded-2xl flex flex-wrap items-center justify-between gap-2">
+          <div className="p-3 bg-background/60 border border-border/60 rounded-2xl flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-muted-foreground">{data.rationale}</p>
             <div className="flex gap-1.5 flex-wrap">
               {data.matchedKeywords.map((kw, idx) => (
@@ -84,7 +84,8 @@ export default function AIRecommendationsSection({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+          {/* Sayfa yapısıyla birebir eşleşen 6 sütunlu grid tasarımı */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
             {data.recommendedItems.map((item: AIInsightItem) => {
               const mediaItem: MediaItem = {
                 id: item.id,
@@ -101,7 +102,7 @@ export default function AIRecommendationsSection({
               const currentLog = logs[key];
 
               return (
-                <div key={key} className="flex flex-col space-y-2">
+                <div key={key} className="flex flex-col space-y-1.5">
                   <MediaCard
                     item={mediaItem}
                     log={currentLog}
@@ -110,7 +111,7 @@ export default function AIRecommendationsSection({
                     onToggleWatchlist={onToggleWatchlist || (() => {})}
                   />
                   {item.reason && (
-                    <p className="text-[11px] text-purple-300/90 italic bg-purple-950/20 border border-purple-800/30 p-2 rounded-xl leading-tight">
+                    <p className="text-[10px] text-purple-300/90 italic bg-purple-950/30 border border-purple-800/30 px-2 py-1.5 rounded-lg leading-tight line-clamp-2" title={item.reason}>
                       "{item.reason}"
                     </p>
                   )}

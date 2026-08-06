@@ -19,9 +19,9 @@ export async function POST(req: Request) {
       });
     }
 
-    // Pass 1: Doğrudan Somut Yapım Başlıkları İsteme
+    // Pass 1: Doğrudan Somut Yapım Başlıkları İsteme (12 adet yedekli istek)
     const pass1Result = await generateObject({
-      model: google('gemini-3.6-flash'),
+      model: google('gemini-2.5-flash'),
       schema: z.object({
         keywords: z.array(z.string()).describe('3 to 4 concise theme keywords representing user taste'),
         suggestions: z.array(
@@ -29,14 +29,14 @@ export async function POST(req: Request) {
             title: z.string().describe('Exact official title of the recommended movie or tv show'),
             media_type: z.enum(['movie', 'tv']).describe('Type of media'),
           })
-        ).describe('List of 10-12 highly relevant real movie or tv show titles available on TMDB'),
+        ).describe('List of 12 highly relevant real movie or tv show titles available on TMDB'),
       }),
       prompt: `Given the user's top saved items:
 Favorites: ${JSON.stringify(favorites.map((f: any) => f.title || f.name))}
 Watchlist: ${JSON.stringify(watchlist.map((w: any) => w.title || w.name))}
 
 1. Extract 3 to 4 concise theme keywords representing their core taste.
-2. Recommend 10 to 12 REAL, non-niche, highly acclaimed movies or TV shows that match this taste. Do NOT recommend fan-made videos, documentaries, or obscure vintage titles unless specifically requested.`,
+2. Recommend 12 REAL, non-niche, highly acclaimed movies or TV shows that match this taste. Do NOT recommend fan-made videos, documentaries, or obscure vintage titles unless specifically requested.`,
     });
 
     const keywords = pass1Result.object.keywords || ["sci-fi", "thriller", "drama"];
@@ -45,7 +45,7 @@ Watchlist: ${JSON.stringify(watchlist.map((w: any) => w.title || w.name))}
     const tmdbApiKey = process.env.TMDB_API_KEY;
     const loggedSet = new Set<string>(loggedKeys);
 
-    // AI'ın Önerdiği Başlıkları TMDB Search ile Paralel Sorgulama (&language=tr-TR eklendi)
+    // AI'ın Önerdiği Başlıkları TMDB Search ile Paralel Sorgulama
     const searchPromises = rawSuggestions.map(async (sug) => {
       try {
         const searchType = sug.media_type === 'tv' ? 'tv' : 'movie';
@@ -76,6 +76,7 @@ Watchlist: ${JSON.stringify(watchlist.map((w: any) => w.title || w.name))}
       }
     }
 
+    // Filtreleme sonrası TAM 10 adet içerik seçimi
     const candidateList = Array.from(candidatesMap.values()).slice(0, 10);
 
     if (candidateList.length === 0) {
@@ -95,7 +96,7 @@ Watchlist: ${JSON.stringify(watchlist.map((w: any) => w.title || w.name))}
     }));
 
     const pass2Result = await generateObject({
-      model: google('gemini-3.6-flash'),
+      model: google('gemini-2.5-flash'),
       schema: z.object({
         reasons: z.array(
           z.object({
