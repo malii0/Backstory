@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Star, Eye, Bookmark, RotateCcw, CheckCircle2, Sparkles, Film, Compass } from 'lucide-react';
 import { MediaItem, LogMetadata } from '@/lib/types';
 import { getEffectiveWatchCount } from '@/lib/utils';
@@ -22,6 +22,8 @@ function MediaCardComponent({
   onToggleCompleted,
   onToggleWatchlist,
 }: MediaCardProps) {
+  const [imgError, setImgError] = useState(false);
+
   const title = item.title || item.name || 'İsimsiz';
   const releaseYear = (item.release_date || item.first_air_date || '').split('-')[0];
   const watchCount = getEffectiveWatchCount(log);
@@ -66,6 +68,8 @@ function MediaCardComponent({
     return {};
   };
 
+  const showPoster = item.poster_path && !imgError;
+
   return (
     <div
       onClick={handleSelect}
@@ -75,16 +79,18 @@ function MediaCardComponent({
       }`}
     >
       <div className="relative aspect-[2/3] w-full bg-background overflow-hidden flex-shrink-0">
-        {item.poster_path ? (
+        {showPoster ? (
           <img
             src={`https://image.tmdb.org/t/p/w342${item.poster_path}`}
             alt={title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             loading="lazy"
+            onError={() => setImgError(true)}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-muted-foreground font-bold text-xs p-2 text-center">
-            Görsel Yok
+          <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground font-bold text-xs p-3 text-center bg-muted/30 border border-border/40 gap-2">
+            <Film className="w-8 h-8 opacity-40" />
+            <span className="line-clamp-2 leading-tight">{title}</span>
           </div>
         )}
 
@@ -109,7 +115,7 @@ function MediaCardComponent({
           </div>
         )}
 
-        {/* Kullanıcı Puanı (Rozet yoksa sol üstte gösterilir) */}
+        {/* Kullanıcı Puanı */}
         {userRating > 0 && !item.recommendationSource && (
           <div className="absolute top-2 left-2 z-10 bg-background/80 backdrop-blur-md border border-accent/50 text-accent text-[11px] font-black px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-lg">
             <Star className="w-3 h-3 fill-accent text-accent" />
