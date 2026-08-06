@@ -19,7 +19,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // Pass 1: Doğrudan Somut Yapım Başlıkları İsteme (12 adet yedekli istek)
+    // Pass 1: 15 Adet Başlık İsteme (Yedek Marjı Artırıldı)
     const pass1Result = await generateObject({
       model: google('gemini-3.6-flash'),
       schema: z.object({
@@ -29,14 +29,14 @@ export async function POST(req: Request) {
             title: z.string().describe('Exact official title of the recommended movie or tv show'),
             media_type: z.enum(['movie', 'tv']).describe('Type of media'),
           })
-        ).describe('List of 12 highly relevant real movie or tv show titles available on TMDB'),
+        ).describe('List of 15 highly relevant real movie or tv show titles available on TMDB'),
       }),
       prompt: `Given the user's top saved items:
 Favorites: ${JSON.stringify(favorites.map((f: any) => f.title || f.name))}
 Watchlist: ${JSON.stringify(watchlist.map((w: any) => w.title || w.name))}
 
 1. Extract 3 to 4 concise theme keywords representing their core taste.
-2. Recommend 12 REAL, non-niche, highly acclaimed movies or TV shows that match this taste. Do NOT recommend fan-made videos, documentaries, or obscure vintage titles unless specifically requested.`,
+2. Recommend 15 REAL, non-niche, highly acclaimed movies or TV shows that match this taste. Do NOT recommend fan-made videos, documentaries, or obscure vintage titles unless specifically requested.`,
     });
 
     const keywords = pass1Result.object.keywords || ["sci-fi", "thriller", "drama"];
@@ -45,7 +45,7 @@ Watchlist: ${JSON.stringify(watchlist.map((w: any) => w.title || w.name))}
     const tmdbApiKey = process.env.TMDB_API_KEY;
     const loggedSet = new Set<string>(loggedKeys);
 
-    // AI'ın Önerdiği Başlıkları TMDB Search ile Paralel Sorgulama
+    // TMDB Search ile Paralel Sorgulama
     const searchPromises = rawSuggestions.map(async (sug) => {
       try {
         const searchType = sug.media_type === 'tv' ? 'tv' : 'movie';
@@ -67,7 +67,7 @@ Watchlist: ${JSON.stringify(watchlist.map((w: any) => w.title || w.name))}
 
     const searchedItems = (await Promise.all(searchPromises)).filter(Boolean);
 
-    // Kullanıcının daha önce kaydettiği veya zaten eklediği içerikleri filtresiz tekrarlamayı önle
+    // İzlenmiş / Eklenmiş İçerikleri Eleme
     const candidatesMap = new Map<string, any>();
     for (const item of searchedItems) {
       const uniqueKey = `${item.media_type}_${item.id}`;
@@ -76,8 +76,34 @@ Watchlist: ${JSON.stringify(watchlist.map((w: any) => w.title || w.name))}
       }
     }
 
-    // Filtreleme sonrası TAM 10 adet içerik seçimi
-    const candidateList = Array.from(candidatesMap.values()).slice(0, 10);
+    let candidateList = Array.from(candidatesMap.values());
+
+    // FALLBACK: Eğer filtreler sonucu 10'dan az içerik kaldıysa TMDB Trending'den tam 10'a tamamla
+    if (candidateList.length < 10) {
+      try {
+        const fallbackRes = await fetch(
+          `https://api.themoviedb.org/3/trending/all/week?api_key=${tmdbApiKey}&language=tr-TR`
+        );
+        const fallbackData = await fallbackRes.json();
+        const fallbackResults = fallbackData.results || [];
+
+        for (const fbItem of fallbackResults) {
+          if (candidateList.length >= 10) break;
+          const mediaType = fbItem.media_type === 'tv' ? 'tv' : 'movie';
+          const uniqueKey = `${mediaType}_${fbItem.id}`;
+          
+          if (!loggedSet.has(uniqueKey) && !candidatesMap.has(uniqueKey)) {
+            candidatesMap.set(uniqueKey, { ...fbItem, media_type: mediaType });
+            candidateList.push({ ...fbItem, media_type: mediaType });
+          }
+        }
+      } catch (e) {
+        console.error("Fallback fetch error:", e);
+      }
+    }
+
+    // Tam 10 Adet İle Sınırla
+    candidateList = candidateList.slice(0, 10);
 
     if (candidateList.length === 0) {
       return NextResponse.json({
@@ -87,7 +113,7 @@ Watchlist: ${JSON.stringify(watchlist.map((w: any) => w.title || w.name))}
       });
     }
 
-    // Pass 2: Kart-Özel Gerekçe Üretimi
+    // Pass 2: Gerekçe Üretimi
     const candidatesContext = candidateList.map((c) => ({
       key: `${c.media_type}_${c.id}`,
       title: c.title || c.name,
