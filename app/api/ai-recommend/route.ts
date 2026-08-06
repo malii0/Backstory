@@ -96,7 +96,7 @@ Watchlist: ${JSON.stringify(watchlist.map((w: any) => w.title || w.name))}
     }));
 
     const pass2Result = await generateObject({
-      model: google('gemini-2.5-flash'),
+      model: google('gemini-3.6-flash'),
       schema: z.object({
         reasons: z.array(
           z.object({
