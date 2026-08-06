@@ -11,7 +11,6 @@ export async function POST(req: Request) {
   try {
     const { watchlist = [], favorites = [], loggedKeys = [] } = await req.json();
 
-    // Guard Clause: Kullanıcının verisi tamamen boşsa API çağrısı yapmadan güvenli dön
     if (watchlist.length === 0 && favorites.length === 0) {
       return NextResponse.json({
         rationale: "Öneri oluşturabilmek için profilinize en az bir film/dizi ekleyin veya puanlayın.",
@@ -20,73 +19,60 @@ export async function POST(req: Request) {
       });
     }
 
-    // Pass 1: Zod Şeması ile Garantili Keyword Çıkarımı
+    // Pass 1: Doğrudan Somut Yapım Başlıkları İsteme
     const pass1Result = await generateObject({
-      model: google('gemini-3.6-flash'), // Tek tip güncel model ismi
+      model: google('gemini-3.6-flash'),
       schema: z.object({
-        keywords: z.array(z.string()).describe('3 to 4 concise TMDB search keywords representing user taste'),
+        keywords: z.array(z.string()).describe('3 to 4 concise theme keywords representing user taste'),
+        suggestions: z.array(
+          z.object({
+            title: z.string().describe('Exact official title of the recommended movie or tv show'),
+            media_type: z.enum(['movie', 'tv']).describe('Type of media'),
+          })
+        ).describe('List of 10-12 highly relevant real movie or tv show titles available on TMDB'),
       }),
       prompt: `Given the user's top saved items:
-Favorites: ${JSON.stringify(favorites)}
-Watchlist: ${JSON.stringify(watchlist)}
-Extract 3 to 4 concise TMDB search keywords (genres, themes, or tropes) representing their core taste.`,
+Favorites: ${JSON.stringify(favorites.map((f: any) => f.title || f.name))}
+Watchlist: ${JSON.stringify(watchlist.map((w: any) => w.title || w.name))}
+
+1. Extract 3 to 4 concise theme keywords representing their core taste.
+2. Recommend 10 to 12 REAL, non-niche, highly acclaimed movies or TV shows that match this taste. Do NOT recommend fan-made videos, documentaries, or obscure vintage titles unless specifically requested.`,
     });
 
-    const keywords = pass1Result.object.keywords.length > 0
-      ? pass1Result.object.keywords
-      : ["sci-fi", "thriller", "drama"];
+    const keywords = pass1Result.object.keywords || ["sci-fi", "thriller", "drama"];
+    const rawSuggestions = pass1Result.object.suggestions || [];
 
     const tmdbApiKey = process.env.TMDB_API_KEY;
     const loggedSet = new Set<string>(loggedKeys);
 
-    // Keyword ID'lerini tek seferde paralel çekme
-    const keywordIdPromises = keywords.map(async (kw) => {
+    // AI'ın Önerdiği Başlıkları TMDB Search ile Paralel Sorgulama (&language=tr-TR eklendi)
+    const searchPromises = rawSuggestions.map(async (sug) => {
       try {
-        const res = await fetch(`https://api.themoviedb.org/3/search/keyword?api_key=${tmdbApiKey}&query=${encodeURIComponent(kw)}`);
+        const searchType = sug.media_type === 'tv' ? 'tv' : 'movie';
+        const res = await fetch(
+          `https://api.themoviedb.org/3/search/${searchType}?api_key=${tmdbApiKey}&query=${encodeURIComponent(sug.title)}&language=tr-TR`
+        );
         const data = await res.json();
-        return data.results?.[0]?.id || null;
+        const firstResult = data.results?.[0];
+        if (!firstResult) return null;
+
+        return {
+          ...firstResult,
+          media_type: searchType,
+        };
       } catch {
         return null;
       }
     });
 
-    const resolvedKwIds = (await Promise.all(keywordIdPromises)).filter(Boolean);
+    const searchedItems = (await Promise.all(searchPromises)).filter(Boolean);
 
-    // Film ve Dizi Discover isteklerini paralel çalıştırma
-    const discoverPromises = resolvedKwIds.flatMap((kwId) => {
-      const fetchMovie = async () => {
-        try {
-          const res = await fetch(`https://api.themoviedb.org/3/discover/movie?api_key=${tmdbApiKey}&with_keywords=${kwId}&sort_by=vote_average.desc&vote_count.gte=100`);
-          const data = await res.json();
-          return (data.results || []).map((item: any) => ({ ...item, media_type: 'movie' }));
-        } catch {
-          return [];
-        }
-      };
-
-      const fetchTV = async () => {
-        try {
-          const res = await fetch(`https://api.themoviedb.org/3/discover/tv?api_key=${tmdbApiKey}&with_keywords=${kwId}&sort_by=vote_average.desc&vote_count.gte=50`);
-          const data = await res.json();
-          return (data.results || []).map((item: any) => ({ ...item, media_type: 'tv' }));
-        } catch {
-          return [];
-        }
-      };
-
-      return [fetchMovie(), fetchTV()];
-    });
-
-    const rawResults = await Promise.all(discoverPromises);
-
-    // Type-scoped key kullanarak filtreleme ("movie_550" / "tv_550")
+    // Kullanıcının daha önce kaydettiği veya zaten eklediği içerikleri filtresiz tekrarlamayı önle
     const candidatesMap = new Map<string, any>();
-    for (const list of rawResults) {
-      for (const item of list) {
-        const uniqueKey = `${item.media_type}_${item.id}`;
-        if (!loggedSet.has(uniqueKey) && !candidatesMap.has(uniqueKey)) {
-          candidatesMap.set(uniqueKey, item);
-        }
+    for (const item of searchedItems) {
+      const uniqueKey = `${item.media_type}_${item.id}`;
+      if (!loggedSet.has(uniqueKey) && !candidatesMap.has(uniqueKey)) {
+        candidatesMap.set(uniqueKey, item);
       }
     }
 
@@ -100,7 +86,7 @@ Extract 3 to 4 concise TMDB search keywords (genres, themes, or tropes) represen
       });
     }
 
-    // Pass 2: Zod Şeması ile Garantili Kart-Özel Gerekçe Üretimi
+    // Pass 2: Kart-Özel Gerekçe Üretimi
     const candidatesContext = candidateList.map((c) => ({
       key: `${c.media_type}_${c.id}`,
       title: c.title || c.name,
@@ -114,14 +100,14 @@ Extract 3 to 4 concise TMDB search keywords (genres, themes, or tropes) represen
         reasons: z.array(
           z.object({
             key: z.string().describe('Unique identifier format "movie_ID" or "tv_ID"'),
-            reason: z.string().describe('1 concise personalized sentence explaining why it matches user taste'),
+            reason: z.string().describe('1 concise personalized sentence in Turkish explaining why it matches user taste'),
           })
         ),
       }),
       prompt: `User's top favorites: ${JSON.stringify(favorites.map((f: any) => f.title || f.name))}.
 Selected candidates: ${JSON.stringify(candidatesContext)}.
 
-For EACH candidate, explain in EXACTLY 1 concise sentence why it matches the user's taste.`,
+For EACH candidate, explain in EXACTLY 1 concise sentence in TURKISH why it matches the user's taste.`,
     });
 
     const reasonsMap = (pass2Result.object.reasons || []).reduce((acc, curr) => {
@@ -136,6 +122,8 @@ For EACH candidate, explain in EXACTLY 1 concise sentence why it matches the use
         title: c.title || c.name,
         media_type: c.media_type as 'movie' | 'tv',
         poster_path: c.poster_path,
+        release_date: c.release_date,
+        first_air_date: c.first_air_date,
         vote_average: c.vote_average,
         overview: c.overview,
         reason: reasonsMap[uniqueKey] || "Profilinizdeki tercihlere göre özel önerildi.",
@@ -148,7 +136,6 @@ For EACH candidate, explain in EXACTLY 1 concise sentence why it matches the use
       recommendedItems,
     });
   } catch (error: any) {
-    // Vercel Runtime Logs ekranında hatanın kök sebebini görebilmek için
     console.error("AI RECOMMEND API ERROR DETAILS:", error);
     return NextResponse.json(
       { error: error?.message || 'AI Insight hatası oluştu' },

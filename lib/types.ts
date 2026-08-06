@@ -115,6 +115,8 @@ export interface AIInsightItem {
   vote_average: number;
   overview: string;
   reason?: string;
+  release_date?: string;
+  first_air_date?: string;
 }
 
 export interface AIInsightResponse {

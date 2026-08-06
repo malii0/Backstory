@@ -91,6 +91,8 @@ export default function AIRecommendationsSection({
                 title: item.title,
                 media_type: item.media_type,
                 poster_path: item.poster_path,
+                release_date: item.release_date,
+                first_air_date: item.first_air_date,
                 vote_average: item.vote_average,
                 overview: item.overview,
               };

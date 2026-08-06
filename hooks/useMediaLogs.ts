@@ -13,7 +13,6 @@ export function useMediaLogs(
   const [isLogsLoading, setIsLogsLoading] = useState(true);
   const previousLogsRef = useRef<Record<string, LogMetadata> | null>(null);
 
-  // Stale Cloud Load Guard
   const fetchRequestIdRef = useRef(0);
 
   useEffect(() => {
@@ -72,7 +71,6 @@ export function useMediaLogs(
                 updatedAt: incomingUpdatedAt,
               };
 
-              // Realtime Echo Guard: Yerel optimistic state daha güncelse ezilmesini engelle
               setLogs((prev) => {
                 const existing = prev[row.key];
                 if (existing && (existing.updatedAt ?? 0) > incomingUpdatedAt) {
@@ -144,10 +142,13 @@ export function useMediaLogs(
       calculatedRuntime = epCount > 0 ? epCount * epTime : currentLog.runtime || 0;
     }
 
+    // itemData içine girmeden önce geçici öneri badge alanlarını temizle
+    const { recommendationSource, matchScore, ...cleanItem } = item as any;
+
     const updatedLog: LogMetadata = {
       ...currentLog,
       ...updates,
-      itemData: item,
+      itemData: cleanItem as MediaItem,
       updatedAt: Date.now(),
       runtime: calculatedRuntime,
     };
