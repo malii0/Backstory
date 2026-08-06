@@ -27,10 +27,19 @@ export default function RatingManagerModal({
   const [ratingFilter, setRatingFilter] = useState<RatingFilter>('all');
   const [sortBy, setSortBy] = useState<SortOption>('rating.desc');
 
+  // Watchlist filtresi: Sadece Watchlist'te OLMAYAN ve itemData'sı bulunan içerikleri alıyoruz
+  const validLogs = useMemo(() => {
+    return Object.entries(logs).filter(
+      ([_, log]) => log.itemData && !log.isWatchlist
+    );
+  }, [logs]);
+
   const filteredLogs = useMemo(() => {
-    let list = Object.entries(logs)
-      .filter(([_, log]) => log.itemData)
-      .map(([key, log]) => ({ key, log, item: log.itemData! }));
+    let list = validLogs.map(([key, log]) => ({
+      key,
+      log,
+      item: log.itemData!,
+    }));
 
     if (ratingFilter === 'rated') {
       list = list.filter(({ log }) => log.rating > 0);
@@ -51,26 +60,38 @@ export default function RatingManagerModal({
     }
 
     list.sort((a, b) => {
-      if (sortBy === 'rating.desc') return b.log.rating - a.log.rating;
-      if (sortBy === 'rating.asc') return a.log.rating - b.log.rating;
+      if (sortBy === 'rating.desc') {
+        // Puanlar eşitse en son güncelleneni üstte göster
+        if (b.log.rating === a.log.rating) {
+          return (b.log.updatedAt || 0) - (a.log.updatedAt || 0);
+        }
+        return b.log.rating - a.log.rating;
+      }
+      if (sortBy === 'rating.asc') {
+        if (a.log.rating === b.log.rating) {
+          return (b.log.updatedAt || 0) - (a.log.updatedAt || 0);
+        }
+        return a.log.rating - b.log.rating;
+      }
       if (sortBy === 'title.asc') {
         const titleA = a.item.title || a.item.name || '';
         const titleB = b.item.title || b.item.name || '';
         return titleA.localeCompare(titleB, 'tr');
       }
+      // 'updated.desc' varsayılan tarihi kullanır
       return (b.log.updatedAt || 0) - (a.log.updatedAt || 0);
     });
 
     return list;
-  }, [logs, searchQuery, selectedMediaType, ratingFilter, sortBy]);
+  }, [validLogs, searchQuery, selectedMediaType, ratingFilter, sortBy]);
 
   const ratedCount = useMemo(
-    () => Object.values(logs).filter((l) => l.rating > 0).length,
-    [logs]
+    () => validLogs.filter(([_, l]) => l.rating > 0).length,
+    [validLogs]
   );
   const unratedCount = useMemo(
-    () => Object.values(logs).filter((l) => l.itemData && l.rating === 0).length,
-    [logs]
+    () => validLogs.filter(([_, l]) => l.rating === 0).length,
+    [validLogs]
   );
 
   if (!isOpen) return null;
@@ -250,7 +271,6 @@ export default function RatingManagerModal({
                         </span>
                         {releaseYear && <span>• {releaseYear}</span>}
                         {log.isCompleted && <span className="text-emerald-400">• İzlendi</span>}
-                        {log.isWatchlist && <span className="text-accent">• İzlenecek</span>}
                       </p>
                     </div>
                   </div>
