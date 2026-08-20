@@ -1,4 +1,3 @@
-// lib/database.types.ts
 export type Json =
   | string
   | number
@@ -33,7 +32,7 @@ export interface Database {
           runtime?: number;
           updated_at?: number | string;
         };
-        Update: Partial<Database['public']['Tables']['media_logs']['Insert']>;
+        Update: Partial<Database["public"]["Tables"]["media_logs"]["Insert"]>;
       };
       profiles: {
         Row: {
@@ -50,7 +49,7 @@ export interface Database {
           avatar_url?: string | null;
           updated_at?: string;
         };
-        Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
+        Update: Partial<Database["public"]["Tables"]["profiles"]["Insert"]>;
       };
     };
   };

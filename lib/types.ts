@@ -5,15 +5,15 @@ export interface MediaItem {
   overview?: string;
   poster_path?: string | null;
   backdrop_path?: string | null;
-  media_type: 'movie' | 'tv';
+  media_type: "movie" | "tv";
   vote_average?: number;
   vote_count?: number;
   release_date?: string;
   first_air_date?: string;
   genre_ids?: number[];
   popularity?: number;
-  recommendationSource?: 'similar' | 'genre' | 'wildcard';
-  matchScore?: number; // Akıllı sıralama puanı eklendi
+  recommendationSource?: "similar" | "genre" | "wildcard";
+  matchScore?: number;
 }
 
 export interface Collection {
@@ -52,8 +52,18 @@ export interface MediaDetail extends MediaItem {
   };
   created_by?: { id: number; name: string; profile_path?: string | null }[];
   credits?: {
-    crew?: { id: number; name: string; job: string; profile_path?: string | null }[];
-    cast?: { id: number; name: string; character: string; profile_path: string | null }[];
+    crew?: {
+      id: number;
+      name: string;
+      job: string;
+      profile_path?: string | null;
+    }[];
+    cast?: {
+      id: number;
+      name: string;
+      character: string;
+      profile_path: string | null;
+    }[];
   };
   recommendations?: {
     results: MediaItem[];
@@ -69,7 +79,7 @@ export interface MediaDetail extends MediaItem {
       type: string;
     }[];
   };
-  'watch/providers'?: {
+  "watch/providers"?: {
     results?: {
       [key: string]: WatchProvidersRegion | undefined;
     };
@@ -79,7 +89,7 @@ export interface MediaDetail extends MediaItem {
 export interface LogMetadata {
   isCompleted: boolean;
   isWatchlist: boolean;
-  rating: number; // 0-10 skalası
+  rating: number;
   watchCount: number;
   itemData?: MediaItem;
   runtime?: number;
@@ -105,12 +115,17 @@ export interface ActivityFeedItem {
   updatedAt: number;
 }
 
-export type ActiveTab = 'explore' | 'completed' | 'watchlist' | 'stats' | 'feed';
+export type ActiveTab =
+  | "explore"
+  | "completed"
+  | "watchlist"
+  | "stats"
+  | "feed";
 
 export interface AIInsightItem {
   id: number;
   title: string;
-  media_type: 'movie' | 'tv';
+  media_type: "movie" | "tv";
   poster_path: string | null;
   vote_average: number;
   overview: string;

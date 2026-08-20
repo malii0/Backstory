@@ -1,9 +1,19 @@
-'use client';
+"use client";
 
-import React, { useCallback, useState } from 'react';
-import { Star, Eye, Bookmark, RotateCcw, CheckCircle2, Sparkles, Film, Compass } from 'lucide-react';
-import { MediaItem, LogMetadata } from '@/lib/types';
-import { getEffectiveWatchCount } from '@/lib/utils';
+import React, { useCallback, useState } from "react";
+import Image from "next/image";
+import {
+  Star,
+  Eye,
+  Bookmark,
+  RotateCcw,
+  CheckCircle2,
+  Sparkles,
+  Film,
+  Compass,
+} from "lucide-react";
+import { MediaItem, LogMetadata } from "@/lib/types";
+import { getEffectiveWatchCount } from "@/lib/utils";
 
 interface MediaCardProps {
   item: MediaItem;
@@ -24,8 +34,10 @@ function MediaCardComponent({
 }: MediaCardProps) {
   const [imgError, setImgError] = useState(false);
 
-  const title = item.title || item.name || 'İsimsiz';
-  const releaseYear = (item.release_date || item.first_air_date || '').split('-')[0];
+  const title = item.title || item.name || "İsimsiz";
+  const releaseYear = (item.release_date || item.first_air_date || "").split(
+    "-",
+  )[0];
   const watchCount = getEffectiveWatchCount(log);
 
   const isCompleted = !!log?.isCompleted;
@@ -36,33 +48,40 @@ function MediaCardComponent({
     onSelect(item);
   }, [onSelect, item]);
 
-  const handleCompleted = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    onToggleCompleted(item);
-  }, [onToggleCompleted, item]);
+  const handleCompleted = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onToggleCompleted(item);
+    },
+    [onToggleCompleted, item],
+  );
 
-  const handleWatchlist = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    onToggleWatchlist(item);
-  }, [onToggleWatchlist, item]);
+  const handleWatchlist = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onToggleWatchlist(item);
+    },
+    [onToggleWatchlist, item],
+  );
 
   const getCardStyle = () => {
     if (isCompleted && isWatchlist) {
       return {
-        borderColor: 'var(--app-completed)',
-        boxShadow: '0 0 12px -2px var(--app-completed), 0 0 0 2px var(--app-accent)',
+        borderColor: "var(--app-completed)",
+        boxShadow:
+          "0 0 12px -2px var(--app-completed), 0 0 0 2px var(--app-accent)",
       };
     }
     if (isCompleted) {
       return {
-        borderColor: 'var(--app-completed)',
-        boxShadow: '0 4px 12px -2px var(--app-completed)',
+        borderColor: "var(--app-completed)",
+        boxShadow: "0 4px 12px -2px var(--app-completed)",
       };
     }
     if (isWatchlist) {
       return {
-        borderColor: 'var(--app-accent)',
-        boxShadow: '0 4px 12px -2px var(--app-accent)',
+        borderColor: "var(--app-accent)",
+        boxShadow: "0 4px 12px -2px var(--app-accent)",
       };
     }
     return {};
@@ -75,16 +94,19 @@ function MediaCardComponent({
       onClick={handleSelect}
       style={getCardStyle()}
       className={`group bg-card/60 rounded-2xl overflow-hidden cursor-pointer transition-all duration-200 flex flex-col h-full relative border ${
-        !isCompleted && !isWatchlist ? 'border-border/80 hover:border-border' : ''
+        !isCompleted && !isWatchlist
+          ? "border-border/80 hover:border-border"
+          : ""
       }`}
     >
       <div className="relative aspect-[2/3] w-full bg-background overflow-hidden flex-shrink-0">
         {showPoster ? (
-          <img
+          <Image
             src={`https://image.tmdb.org/t/p/w342${item.poster_path}`}
             alt={title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            loading="lazy"
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+            className="object-cover group-hover:scale-105 transition-transform duration-300"
             onError={() => setImgError(true)}
           />
         ) : (
@@ -94,20 +116,19 @@ function MediaCardComponent({
           </div>
         )}
 
-        {/* Rozet (Badge): Sana Özel Öneri Gerekçesi (Benzer / Tür / Keşfet) */}
         {item.recommendationSource && (
           <div className="absolute top-2 left-2 z-10 flex items-center text-[10px] font-extrabold shadow-lg">
-            {item.recommendationSource === 'similar' && (
+            {item.recommendationSource === "similar" && (
               <span className="bg-purple-900/90 border border-purple-400/50 text-purple-200 flex items-center gap-1 px-2 py-0.5 rounded-lg backdrop-blur-md">
                 <Sparkles className="w-2.5 h-2.5 fill-current" /> Benzer
               </span>
             )}
-            {item.recommendationSource === 'genre' && (
+            {item.recommendationSource === "genre" && (
               <span className="bg-blue-900/90 border border-blue-400/50 text-blue-200 flex items-center gap-1 px-2 py-0.5 rounded-lg backdrop-blur-md">
                 <Film className="w-2.5 h-2.5" /> Sevdiğin Tür
               </span>
             )}
-            {item.recommendationSource === 'wildcard' && (
+            {item.recommendationSource === "wildcard" && (
               <span className="bg-amber-900/90 border border-amber-400/50 text-amber-200 flex items-center gap-1 px-2 py-0.5 rounded-lg backdrop-blur-md">
                 <Compass className="w-2.5 h-2.5" /> Keşfet
               </span>
@@ -115,7 +136,6 @@ function MediaCardComponent({
           </div>
         )}
 
-        {/* Kullanıcı Puanı */}
         {userRating > 0 && !item.recommendationSource && (
           <div className="absolute top-2 left-2 z-10 bg-background/80 backdrop-blur-md border border-accent/50 text-accent text-[11px] font-black px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-lg">
             <Star className="w-3 h-3 fill-accent text-accent" />
@@ -129,16 +149,16 @@ function MediaCardComponent({
             style={
               isCompleted
                 ? {
-                    backgroundColor: 'var(--app-completed)',
-                    borderColor: 'var(--app-completed)',
-                    color: 'var(--app-completed-foreground)',
+                    backgroundColor: "var(--app-completed)",
+                    borderColor: "var(--app-completed)",
+                    color: "var(--app-completed-foreground)",
                   }
                 : undefined
             }
             className={`p-2 rounded-xl backdrop-blur-md border transition-all ${
               isCompleted
-                ? 'font-bold shadow-md'
-                : 'bg-background/80 border-border text-muted-foreground hover:text-foreground shadow-md'
+                ? "font-bold shadow-md"
+                : "bg-background/80 border-border text-muted-foreground hover:text-foreground shadow-md"
             }`}
             title="İzlendi İşaretle"
           >
@@ -148,8 +168,8 @@ function MediaCardComponent({
             onClick={handleWatchlist}
             className={`p-2 rounded-xl backdrop-blur-md border transition-all ${
               isWatchlist
-                ? 'bg-accent border-accent text-accent-foreground font-bold shadow-md'
-                : 'bg-background/80 border-border text-muted-foreground hover:text-foreground shadow-md'
+                ? "bg-accent border-accent text-accent-foreground font-bold shadow-md"
+                : "bg-background/80 border-border text-muted-foreground hover:text-foreground shadow-md"
             }`}
             title="İzleme Listesine Ekle"
           >
@@ -161,8 +181,8 @@ function MediaCardComponent({
           {isCompleted && (
             <div
               style={{
-                backgroundColor: 'var(--app-completed)',
-                color: 'var(--app-completed-foreground)',
+                backgroundColor: "var(--app-completed)",
+                color: "var(--app-completed-foreground)",
               }}
               className="p-1.5 rounded-xl shadow-lg flex items-center justify-center"
               title="İzlendi"
@@ -198,7 +218,7 @@ function MediaCardComponent({
         </h3>
         <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-auto pt-1">
           <div className="flex items-center gap-1.5">
-            <span>{releaseYear || 'N/A'}</span>
+            <span>{releaseYear || "N/A"}</span>
             {isNowPlaying && (
               <span className="inline-flex items-center gap-1 text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.2 rounded-md">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -208,7 +228,7 @@ function MediaCardComponent({
           </div>
           <span className="flex items-center gap-0.5 text-muted-foreground font-medium">
             <Star className="w-3 h-3 text-accent/80 fill-accent/80" />
-            {item.vote_average?.toFixed(1) || '0'}
+            {item.vote_average?.toFixed(1) || "0"}
           </span>
         </div>
       </div>

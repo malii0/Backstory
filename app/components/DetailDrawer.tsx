@@ -1,6 +1,7 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import Image from "next/image";
 import {
   X,
   Star,
@@ -20,9 +21,11 @@ import {
   Clapperboard,
   Loader2,
   Users,
-} from 'lucide-react';
-import { MediaItem, MediaDetail, LogMetadata, Collection } from '@/lib/types';
-import { getEffectiveWatchCount } from '@/lib/utils';
+  AlertCircle,
+  RefreshCw,
+} from "lucide-react";
+import { MediaItem, MediaDetail, LogMetadata, Collection } from "@/lib/types";
+import { getEffectiveWatchCount } from "@/lib/utils";
 
 interface DetailDrawerProps {
   selectedItem: MediaItem;
@@ -38,6 +41,26 @@ interface DetailDrawerProps {
   onUpdateRating: (rating: number) => void;
   onUpdateWatchCount: (count: number) => void;
   onRetry: () => void;
+}
+
+interface PersonCredit {
+  id: number;
+  title?: string;
+  name?: string;
+  job?: string;
+  department?: string;
+  popularity?: number;
+  poster_path?: string;
+  release_date?: string;
+  first_air_date?: string;
+  media_type?: "movie" | "tv";
+  vote_average?: number;
+}
+
+interface WatchProviderInfo {
+  provider_id: number;
+  provider_name: string;
+  logo_path: string;
 }
 
 export default function DetailDrawer({
@@ -62,7 +85,7 @@ export default function DetailDrawer({
   const [activePerson, setActivePerson] = useState<{
     id: number;
     name: string;
-    job: 'Director' | 'Creator' | 'Actor';
+    job: "Director" | "Creator" | "Actor";
   } | null>(null);
   const [filmography, setFilmography] = useState<MediaItem[]>([]);
   const [isFilmographyLoading, setIsFilmographyLoading] = useState(false);
@@ -93,12 +116,29 @@ export default function DetailDrawer({
       setTouchRating(calculatedRating);
     };
 
-    el.addEventListener('touchmove', handleNativeTouchMove, { passive: false });
-    return () => el.removeEventListener('touchmove', handleNativeTouchMove);
+    el.addEventListener("touchmove", handleNativeTouchMove, { passive: false });
+    return () => el.removeEventListener("touchmove", handleNativeTouchMove);
   }, []);
 
-  useEffect(() => {
+  const [prevSelectedItem, setPrevSelectedItem] = useState(selectedItem);
+  if (selectedItem !== prevSelectedItem) {
+    setPrevSelectedItem(selectedItem);
     setCanClose(false);
+  }
+
+  const collectionId = detailData?.belongs_to_collection?.id;
+
+  const [prevCollectionId, setPrevCollectionId] = useState<
+    number | null | undefined
+  >(collectionId);
+  if (collectionId !== prevCollectionId) {
+    setPrevCollectionId(collectionId);
+    if (!collectionId) {
+      setCollectionData(null);
+    }
+  }
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       setCanClose(true);
     }, 250);
@@ -106,18 +146,18 @@ export default function DetailDrawer({
   }, [selectedItem]);
 
   useEffect(() => {
-    window.history.pushState({ drawerOpen: true }, '', '#detail');
+    window.history.pushState({ drawerOpen: true }, "", "#detail");
 
     const handlePopState = () => {
       onCloseRef.current();
     };
 
-    window.addEventListener('popstate', handlePopState);
+    window.addEventListener("popstate", handlePopState);
 
     return () => {
-      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener("popstate", handlePopState);
 
-      if (window.location.hash === '#detail') {
+      if (window.location.hash === "#detail") {
         window.history.back();
       }
     };
@@ -125,7 +165,7 @@ export default function DetailDrawer({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         if (activePerson) {
           setActivePerson(null);
         } else {
@@ -134,71 +174,80 @@ export default function DetailDrawer({
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [activePerson]);
 
   const trailerKey = useMemo(() => {
     if (!detailData?.videos?.results) return null;
     const trailer = detailData.videos.results.find(
-      (v) => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser')
+      (v) =>
+        v.site === "YouTube" && (v.type === "Trailer" || v.type === "Teaser"),
     );
     return trailer ? trailer.key : detailData.videos.results[0]?.key || null;
   }, [detailData]);
 
   useEffect(() => {
-    if (detailData?.belongs_to_collection?.id) {
-      const fetchCollection = async () => {
-        try {
-          const res = await fetch(
-            `/api/tmdb?endpoint=/collection/${detailData.belongs_to_collection!.id}`
-          );
-          if (res.ok) {
-            const data = await res.json();
-            if (data.parts) {
-              data.parts.sort((a: MediaItem, b: MediaItem) => {
-                const dateA = new Date(a.release_date || 0).getTime();
-                const dateB = new Date(b.release_date || 0).getTime();
-                return dateA - dateB;
-              });
-            }
-            setCollectionData(data);
+    if (!collectionId) return;
+
+    let isMounted = true;
+    const fetchCollection = async () => {
+      try {
+        const res = await fetch(
+          `/api/tmdb?endpoint=/collection/${collectionId}`,
+        );
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          if (data.parts) {
+            data.parts.sort((a: MediaItem, b: MediaItem) => {
+              const dateA = new Date(a.release_date || 0).getTime();
+              const dateB = new Date(b.release_date || 0).getTime();
+              return dateA - dateB;
+            });
           }
-        } catch (e) {
-          console.error('Koleksiyon verisi alınamadı', e);
+          setCollectionData(data);
         }
-      };
-      fetchCollection();
-    } else {
-      setCollectionData(null);
-    }
-  }, [detailData]);
+      } catch (e) {
+        console.error("Koleksiyon verisi alınamadı", e);
+      }
+    };
+
+    fetchCollection();
+    return () => {
+      isMounted = false;
+    };
+  }, [collectionId]);
 
   useEffect(() => {
     if (!activePerson) {
-      setFilmography([]);
-      setFilmographyLimit(15);
       return;
     }
 
+    let isMounted = true;
     const fetchPersonFilmography = async () => {
       setIsFilmographyLoading(true);
       setFilmographyLimit(15);
       try {
-        const res = await fetch(`/api/tmdb?endpoint=/person/${activePerson.id}/combined_credits`);
-        if (res.ok) {
+        const res = await fetch(
+          `/api/tmdb?endpoint=/person/${activePerson.id}/combined_credits`,
+        );
+        if (res.ok && isMounted) {
           const data = await res.json();
-          let items: any[] = [];
+          let items: PersonCredit[] = [];
 
-          if (activePerson.job === 'Director') {
-            items = (data.crew || []).filter((c: any) => c.job === 'Director');
-          } else if (activePerson.job === 'Creator') {
+          if (activePerson.job === "Director") {
             items = (data.crew || []).filter(
-              (c: any) =>
-                c.job === 'Executive Producer' || c.department === 'Production' || c.job === 'Creator'
+              (c: PersonCredit) => c.job === "Director",
+            );
+          } else if (activePerson.job === "Creator") {
+            items = (data.crew || []).filter(
+              (c: PersonCredit) =>
+                c.job === "Executive Producer" ||
+                c.department === "Production" ||
+                c.job === "Creator",
             );
             if (items.length === 0) items = data.cast || [];
-          } else if (activePerson.job === 'Actor') {
+          } else if (activePerson.job === "Actor") {
             items = data.cast || [];
           }
 
@@ -206,25 +255,36 @@ export default function DetailDrawer({
           items.forEach((item) => {
             if (!map.has(item.id)) {
               map.set(item.id, {
-                ...item,
-                media_type: item.media_type || 'movie',
+                id: item.id,
+                title: item.title,
+                name: item.name,
+                poster_path: item.poster_path,
+                release_date: item.release_date,
+                first_air_date: item.first_air_date,
+                vote_average: item.vote_average,
+                media_type: item.media_type || "movie",
               });
             }
           });
 
           const sorted = Array.from(map.values()).sort(
-            (a, b) => (b.popularity || 0) - (a.popularity || 0)
+            (a, b) => (b.vote_average || 0) - (a.vote_average || 0),
           );
           setFilmography(sorted);
         }
       } catch (err) {
-        console.error('Filmografi çekilemedi:', err);
+        console.error("Filmografi çekilemedi:", err);
       } finally {
-        setIsFilmographyLoading(false);
+        if (isMounted) {
+          setIsFilmographyLoading(false);
+        }
       }
     };
 
     fetchPersonFilmography();
+    return () => {
+      isMounted = false;
+    };
   }, [activePerson]);
 
   const smartRecommendations = useMemo(() => {
@@ -239,7 +299,7 @@ export default function DetailDrawer({
       combinedMap.set(item.id, {
         ...item,
         media_type: item.media_type || selectedItem.media_type,
-      })
+      }),
     );
 
     if (combinedMap.size < 10) {
@@ -258,11 +318,15 @@ export default function DetailDrawer({
 
   const collectionOrder = useMemo(() => {
     if (!collectionData?.parts || !selectedItem) return null;
-    const index = collectionData.parts.findIndex((p) => p.id === selectedItem.id);
+    const index = collectionData.parts.findIndex(
+      (p) => p.id === selectedItem.id,
+    );
     return index !== -1 ? index + 1 : null;
   }, [collectionData, selectedItem]);
 
-  const directorObj = detailData?.credits?.crew?.find((c) => c.job === 'Director');
+  const directorObj = detailData?.credits?.crew?.find(
+    (c) => c.job === "Director",
+  );
   const creatorObj = detailData?.created_by?.[0];
   const castList = detailData?.credits?.cast?.slice(0, 10) || [];
 
@@ -290,17 +354,18 @@ export default function DetailDrawer({
     isTouchDraggingRef.current = false;
   };
 
-  const title = selectedItem.title || selectedItem.name || 'İçerik Detayı';
+  const title = selectedItem.title || selectedItem.name || "İçerik Detayı";
   const releaseYear = (
     selectedItem.release_date ||
     selectedItem.first_air_date ||
-    ''
-  ).split('-')[0];
+    ""
+  ).split("-")[0];
   const imdbId = detailData?.imdb_id || detailData?.external_ids?.imdb_id;
   const currentWatchCount = getEffectiveWatchCount(currentLog);
-  const watchProviders = detailData?.['watch/providers']?.results?.TR;
+  const watchProviders = detailData?.["watch/providers"]?.results?.TR;
 
-  const activeDisplayRating = touchRating !== null ? touchRating : (currentLog?.rating || 0);
+  const activeDisplayRating =
+    touchRating !== null ? touchRating : currentLog?.rating || 0;
 
   return (
     <div
@@ -316,7 +381,10 @@ export default function DetailDrawer({
         >
           <div className="bg-card border border-border rounded-3xl p-6 max-w-lg w-full space-y-4 max-h-[80vh] flex flex-col shadow-2xl relative">
             <button
-              onClick={() => setActivePerson(null)}
+              onClick={() => {
+                setActivePerson(null);
+                setFilmography([]);
+              }}
               className="absolute top-4 right-4 text-muted-foreground hover:text-foreground p-1 rounded-full bg-muted border border-border"
             >
               <X className="w-4 h-4" />
@@ -328,13 +396,15 @@ export default function DetailDrawer({
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-accent">
-                  {activePerson.job === 'Director'
-                    ? 'Yönetmen Filmografisi'
-                    : activePerson.job === 'Creator'
-                    ? 'Yaratıcı Yapımları'
-                    : 'Oyuncunun Diğer Yapımları'}
+                  {activePerson.job === "Director"
+                    ? "Yönetmen Filmografisi"
+                    : activePerson.job === "Creator"
+                      ? "Yaratıcı Yapımları"
+                      : "Oyuncunun Diğer Yapımları"}
                 </p>
-                <h3 className="text-lg font-extrabold text-foreground">{activePerson.name}</h3>
+                <h3 className="text-lg font-extrabold text-foreground">
+                  {activePerson.name}
+                </h3>
               </div>
             </div>
 
@@ -344,7 +414,9 @@ export default function DetailDrawer({
                 <span>Filmografi yükleniyor...</span>
               </div>
             ) : filmography.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-8">Diğer yapım bulunamadı.</p>
+              <p className="text-xs text-muted-foreground text-center py-8">
+                Diğer yapım bulunamadı.
+              </p>
             ) : (
               <div className="overflow-y-auto custom-scrollbar flex-1 space-y-2 pr-1">
                 {filmography.slice(0, filmographyLimit).map((item) => (
@@ -353,15 +425,20 @@ export default function DetailDrawer({
                     onClick={() => {
                       onSelectItem(item);
                       setActivePerson(null);
+                      setFilmography([]);
                     }}
                     className="flex items-center gap-3 p-2 rounded-xl bg-background/60 hover:bg-muted/80 border border-border/80 cursor-pointer transition-all group"
                   >
                     {item.poster_path ? (
-                      <img
-                        src={`https://image.tmdb.org/t/p/w92${item.poster_path}`}
-                        alt={item.title || item.name}
-                        className="w-10 h-14 object-cover rounded-lg flex-shrink-0"
-                      />
+                      <div className="w-10 h-14 relative flex-shrink-0">
+                        <Image
+                          src={`https://image.tmdb.org/t/p/w92${item.poster_path}`}
+                          alt={item.title || item.name || "Afiş"}
+                          fill
+                          sizes="40px"
+                          className="object-cover rounded-lg"
+                        />
+                      </div>
                     ) : (
                       <div className="w-10 h-14 bg-muted rounded-lg flex items-center justify-center text-muted-foreground flex-shrink-0">
                         <Film className="w-5 h-5" />
@@ -372,8 +449,10 @@ export default function DetailDrawer({
                         {item.title || item.name}
                       </p>
                       <p className="text-[10px] text-muted-foreground">
-                        {(item.release_date || item.first_air_date || '').split('-')[0] || 'N/A'}{' '}
-                        • {item.media_type === 'tv' ? 'Dizi' : 'Film'}
+                        {(item.release_date || item.first_air_date || "").split(
+                          "-",
+                        )[0] || "N/A"}{" "}
+                        • {item.media_type === "tv" ? "Dizi" : "Film"}
                       </p>
                     </div>
                     {item.vote_average && item.vote_average > 0 ? (
@@ -390,7 +469,8 @@ export default function DetailDrawer({
                     onClick={() => setFilmographyLimit((prev) => prev + 20)}
                     className="w-full py-2.5 mt-2 bg-muted/60 hover:bg-muted text-accent border border-border/60 rounded-xl text-xs font-semibold transition-all text-center"
                   >
-                    Daha Fazla Göster ({filmography.length - filmographyLimit} yapım daha var)
+                    Daha Fazla Göster ({filmography.length - filmographyLimit}{" "}
+                    yapım daha var)
                   </button>
                 )}
               </div>
@@ -412,14 +492,40 @@ export default function DetailDrawer({
         </button>
 
         <div className="overflow-y-auto custom-scrollbar flex-1 p-6 space-y-6">
+          {detailError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-between gap-2 text-xs text-red-400">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{detailError}</span>
+              </div>
+              <button
+                onClick={onRetry}
+                className="px-2.5 py-1 bg-red-500/20 hover:bg-red-500/30 rounded-lg text-[11px] font-bold text-red-300 transition-colors flex items-center gap-1"
+              >
+                <RefreshCw className="w-3 h-3" /> Tekrar Dene
+              </button>
+            </div>
+          )}
+
+          {isDetailLoading && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
+              <span>Detaylar yükleniyor...</span>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start pr-8">
             <div className="md:col-span-6 flex gap-3.5 items-start">
               {selectedItem.poster_path ? (
-                <img
-                  src={`https://image.tmdb.org/t/p/w342${selectedItem.poster_path}`}
-                  alt={title}
-                  className="w-28 h-40 object-cover rounded-2xl shadow-xl border border-border flex-shrink-0"
-                />
+                <div className="w-28 h-40 relative rounded-2xl shadow-xl border border-border flex-shrink-0 overflow-hidden">
+                  <Image
+                    src={`https://image.tmdb.org/t/p/w342${selectedItem.poster_path}`}
+                    alt={title}
+                    fill
+                    sizes="112px"
+                    className="object-cover"
+                  />
+                </div>
               ) : (
                 <div className="w-28 h-40 bg-muted rounded-2xl flex items-center justify-center text-muted-foreground border border-border flex-shrink-0">
                   <Film className="w-10 h-10" />
@@ -429,7 +535,7 @@ export default function DetailDrawer({
               <div className="flex-1 space-y-2 pt-0.5 min-w-0">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="bg-accent/10 text-accent border border-accent/30 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
-                    {selectedItem.media_type === 'tv' ? 'Dizi' : 'Film'}
+                    {selectedItem.media_type === "tv" ? "Dizi" : "Film"}
                   </span>
                   {releaseYear && (
                     <span className="bg-card text-foreground border border-border text-[10px] font-bold px-2 py-0.5 rounded-md">
@@ -448,21 +554,25 @@ export default function DetailDrawer({
                   )}
                 </div>
 
-                <h2 
+                <h2
                   title={title}
                   className="text-lg md:text-xl font-extrabold text-foreground leading-snug break-words"
                 >
                   {title}
                 </h2>
 
-                {selectedItem.media_type === 'movie' && directorObj && (
+                {selectedItem.media_type === "movie" && directorObj && (
                   <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-0.5 leading-snug">
                     <span className="flex items-center gap-1 text-muted-foreground">
                       <User className="w-3.5 h-3.5 flex-shrink-0" /> Yönetmen:
                     </span>
                     <button
                       onClick={() =>
-                        setActivePerson({ id: directorObj.id, name: directorObj.name, job: 'Director' })
+                        setActivePerson({
+                          id: directorObj.id,
+                          name: directorObj.name,
+                          job: "Director",
+                        })
                       }
                       title={directorObj.name}
                       className="text-accent font-semibold hover:underline transition-all text-left break-words"
@@ -471,14 +581,18 @@ export default function DetailDrawer({
                     </button>
                   </p>
                 )}
-                {selectedItem.media_type === 'tv' && creatorObj && (
+                {selectedItem.media_type === "tv" && creatorObj && (
                   <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-0.5 leading-snug">
                     <span className="flex items-center gap-1 text-muted-foreground">
                       <User className="w-3.5 h-3.5 flex-shrink-0" /> Yaratıcı:
                     </span>
                     <button
                       onClick={() =>
-                        setActivePerson({ id: creatorObj.id, name: creatorObj.name, job: 'Creator' })
+                        setActivePerson({
+                          id: creatorObj.id,
+                          name: creatorObj.name,
+                          job: "Creator",
+                        })
                       }
                       title={creatorObj.name}
                       className="text-accent font-semibold hover:underline transition-all text-left break-words"
@@ -491,18 +605,21 @@ export default function DetailDrawer({
                 <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                   <span className="flex items-center gap-1 text-accent text-[11px] font-bold bg-card border border-border px-2 py-0.5 rounded-lg">
                     <Star className="w-3 h-3 fill-accent text-accent" />
-                    {selectedItem.vote_average?.toFixed(1) || 'N/A'}
+                    {selectedItem.vote_average?.toFixed(1) || "N/A"}
                   </span>
 
-                  {selectedItem.media_type === 'tv' && detailData?.number_of_seasons && (
-                    <div className="flex items-center gap-1 bg-card border border-border px-2 py-0.5 rounded-lg text-[11px] text-foreground font-medium">
-                      <Tv className="w-3 h-3 text-muted-foreground" />
-                      <span>{detailData.number_of_seasons} S</span>
-                      {detailData.number_of_episodes && (
-                        <span className="text-muted-foreground">• {detailData.number_of_episodes} B</span>
-                      )}
-                    </div>
-                  )}
+                  {selectedItem.media_type === "tv" &&
+                    detailData?.number_of_seasons && (
+                      <div className="flex items-center gap-1 bg-card border border-border px-2 py-0.5 rounded-lg text-[11px] text-foreground font-medium">
+                        <Tv className="w-3 h-3 text-muted-foreground" />
+                        <span>{detailData.number_of_seasons} S</span>
+                        {detailData.number_of_episodes && (
+                          <span className="text-muted-foreground">
+                            • {detailData.number_of_episodes} B
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                   {detailData?.runtime ? (
                     <div className="flex items-center gap-1 bg-card border border-border px-2 py-0.5 rounded-lg text-[11px] text-muted-foreground">
@@ -518,7 +635,7 @@ export default function DetailDrawer({
                     className="inline-flex items-center gap-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all shadow-sm mt-1"
                   >
                     <Play className="w-3 h-3 fill-current" />
-                    {showTrailer ? 'Fragmanı Kapat' : 'Fragmanı İzle'}
+                    {showTrailer ? "Fragmanı Kapat" : "Fragmanı İzle"}
                   </button>
                 )}
               </div>
@@ -530,7 +647,8 @@ export default function DetailDrawer({
               </h3>
               <div className="overflow-y-auto custom-scrollbar flex-1 pr-1">
                 <p className="text-xs text-foreground leading-relaxed">
-                  {selectedItem.overview || 'Bu içerik için özet bilgisi bulunmuyor.'}
+                  {selectedItem.overview ||
+                    "Bu içerik için özet bilgisi bulunmuyor."}
                 </p>
               </div>
             </div>
@@ -562,7 +680,6 @@ export default function DetailDrawer({
             </div>
           )}
 
-          {/* Nerede İzlenir */}
           {watchProviders && (
             <div className="bg-card/80 border border-border/80 p-4 rounded-2xl space-y-3">
               <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
@@ -571,16 +688,20 @@ export default function DetailDrawer({
               </h3>
 
               <div className="flex flex-wrap gap-2">
-                {watchProviders.flatrate?.map((p: any) => (
+                {watchProviders.flatrate?.map((p: WatchProviderInfo) => (
                   <div
                     key={p.provider_id}
                     className="flex items-center gap-2 bg-background border border-border px-3 py-1.5 rounded-xl text-xs font-medium text-foreground"
                   >
-                    <img
-                      src={`https://image.tmdb.org/t/p/original${p.logo_path}`}
-                      alt={p.provider_name}
-                      className="w-5 h-5 rounded-md"
-                    />
+                    <div className="w-5 h-5 relative rounded-md overflow-hidden flex-shrink-0">
+                      <Image
+                        src={`https://image.tmdb.org/t/p/original${p.logo_path}`}
+                        alt={p.provider_name}
+                        fill
+                        sizes="20px"
+                        className="object-cover"
+                      />
+                    </div>
                     <span>{p.provider_name}</span>
                   </div>
                 ))}
@@ -592,7 +713,9 @@ export default function DetailDrawer({
               </div>
 
               <div className="pt-2 border-t border-border/60 flex items-center justify-between text-[11px]">
-                <span className="text-muted-foreground">Veri kaynağı: JustWatch</span>
+                <span className="text-muted-foreground">
+                  Veri kaynağı: JustWatch
+                </span>
                 {watchProviders.link && (
                   <a
                     href={watchProviders.link}
@@ -613,32 +736,36 @@ export default function DetailDrawer({
                 onClick={onToggleCompleted}
                 className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
                   currentLog?.isCompleted
-                    ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
-                    : 'bg-background border-border text-muted-foreground hover:text-foreground'
+                    ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground"
                 }`}
               >
                 <Eye className="w-4 h-4" />
-                {currentLog?.isCompleted ? 'İzlendi' : 'İzledim'}
+                {currentLog?.isCompleted ? "İzlendi" : "İzledim"}
               </button>
 
               <button
                 onClick={onToggleWatchlist}
                 className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
                   currentLog?.isWatchlist
-                    ? 'bg-accent/20 border-accent/40 text-accent'
-                    : 'bg-background border-border text-muted-foreground hover:text-foreground'
+                    ? "bg-accent/20 border-accent/40 text-accent"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground"
                 }`}
               >
                 <Bookmark className="w-4 h-4" />
-                {currentLog?.isWatchlist ? 'Listede' : 'İzleyeceğim'}
+                {currentLog?.isWatchlist ? "Listede" : "İzleyeceğim"}
               </button>
             </div>
 
             <div className="pt-2 border-t border-border/60 flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">Puanınız:</span>
+                <span className="text-xs font-medium text-muted-foreground">
+                  Puanınız:
+                </span>
                 <span className="text-xs font-bold text-accent">
-                  {activeDisplayRating > 0 ? `${activeDisplayRating} / 10` : 'Puan Yok'}
+                  {activeDisplayRating > 0
+                    ? `${activeDisplayRating} / 10`
+                    : "Puan Yok"}
                 </span>
               </div>
 
@@ -659,8 +786,8 @@ export default function DetailDrawer({
                     <Star
                       className={`w-5 h-5 sm:w-6 sm:h-6 transition-colors ${
                         activeDisplayRating >= star
-                          ? 'text-accent fill-accent'
-                          : 'text-muted border-border'
+                          ? "text-accent fill-accent"
+                          : "text-muted border-border"
                       }`}
                     />
                   </button>
@@ -676,7 +803,9 @@ export default function DetailDrawer({
                 </span>
                 <div className="flex items-center gap-2 bg-background border border-border rounded-xl p-1">
                   <button
-                    onClick={() => onUpdateWatchCount(Math.max(1, currentWatchCount - 1))}
+                    onClick={() =>
+                      onUpdateWatchCount(Math.max(1, currentWatchCount - 1))
+                    }
                     className="p-1 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-colors"
                     disabled={currentWatchCount <= 1}
                   >
@@ -706,15 +835,25 @@ export default function DetailDrawer({
                 {castList.map((actor) => (
                   <div
                     key={actor.id}
-                    onClick={() => setActivePerson({ id: actor.id, name: actor.name, job: 'Actor' })}
+                    onClick={() =>
+                      setActivePerson({
+                        id: actor.id,
+                        name: actor.name,
+                        job: "Actor",
+                      })
+                    }
                     className="flex-shrink-0 w-20 text-center cursor-pointer group"
                   >
                     {actor.profile_path ? (
-                      <img
-                        src={`https://image.tmdb.org/t/p/w185${actor.profile_path}`}
-                        alt={actor.name}
-                        className="w-20 h-24 object-cover rounded-2xl mb-1.5 border border-border group-hover:border-accent/50 transition-colors shadow-md"
-                      />
+                      <div className="w-20 h-24 relative mb-1.5 rounded-2xl overflow-hidden border border-border group-hover:border-accent/50 transition-colors shadow-md">
+                        <Image
+                          src={`https://image.tmdb.org/t/p/w185${actor.profile_path}`}
+                          alt={actor.name}
+                          fill
+                          sizes="80px"
+                          className="object-cover"
+                        />
+                      </div>
                     ) : (
                       <div className="w-20 h-24 bg-muted rounded-2xl mb-1.5 border border-border flex items-center justify-center text-muted-foreground group-hover:border-accent/50 transition-colors">
                         <User className="w-8 h-8" />
@@ -723,7 +862,9 @@ export default function DetailDrawer({
                     <p className="text-[11px] font-bold text-foreground line-clamp-1 group-hover:text-accent transition-colors">
                       {actor.name}
                     </p>
-                    <p className="text-[9px] text-muted-foreground line-clamp-1">{actor.character}</p>
+                    <p className="text-[9px] text-muted-foreground line-clamp-1">
+                      {actor.character}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -748,17 +889,25 @@ export default function DetailDrawer({
                 {collectionData.parts?.map((part) => (
                   <div
                     key={part.id}
-                    onClick={() => onSelectItem({ ...part, media_type: 'movie' })}
+                    onClick={() =>
+                      onSelectItem({ ...part, media_type: "movie" })
+                    }
                     className={`flex-shrink-0 w-20 cursor-pointer group ${
-                      part.id === selectedItem.id ? 'ring-2 ring-accent rounded-xl' : ''
+                      part.id === selectedItem.id
+                        ? "ring-2 ring-accent rounded-xl"
+                        : ""
                     }`}
                   >
                     {part.poster_path ? (
-                      <img
-                        src={`https://image.tmdb.org/t/p/w185${part.poster_path}`}
-                        alt={part.title}
-                        className="w-full h-28 object-cover rounded-xl mb-1 group-hover:opacity-80 transition-opacity"
-                      />
+                      <div className="w-full h-28 relative rounded-xl overflow-hidden mb-1 group-hover:opacity-80 transition-opacity">
+                        <Image
+                          src={`https://image.tmdb.org/t/p/w185${part.poster_path}`}
+                          alt={part.title || "Afiş"}
+                          fill
+                          sizes="80px"
+                          className="object-cover"
+                        />
+                      </div>
                     ) : (
                       <div className="w-full h-28 bg-muted rounded-xl mb-1 flex items-center justify-center text-muted-foreground">
                         <Film className="w-6 h-6" />
@@ -786,11 +935,15 @@ export default function DetailDrawer({
                     className="bg-card border border-border/80 rounded-xl p-2 cursor-pointer hover:border-accent/40 transition-all group flex flex-col justify-between"
                   >
                     {rec.poster_path ? (
-                      <img
-                        src={`https://image.tmdb.org/t/p/w185${rec.poster_path}`}
-                        alt={rec.title || rec.name}
-                        className="w-full aspect-[2/3] object-cover rounded-lg mb-1.5"
-                      />
+                      <div className="w-full aspect-[2/3] relative rounded-lg overflow-hidden mb-1.5">
+                        <Image
+                          src={`https://image.tmdb.org/t/p/w185${rec.poster_path}`}
+                          alt={rec.title || rec.name || "Öneri"}
+                          fill
+                          sizes="(max-width: 640px) 50vw, 20vw"
+                          className="object-cover"
+                        />
+                      </div>
                     ) : (
                       <div className="w-full aspect-[2/3] bg-muted rounded-lg mb-1.5 flex items-center justify-center text-muted-foreground">
                         <Film className="w-6 h-6" />

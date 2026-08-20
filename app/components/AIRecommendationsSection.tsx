@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { useAIRecommendations } from '@/hooks/useAIRecommendations';
-import { MediaItem, LogMetadata, AIInsightItem } from '@/lib/types';
-import MediaCard from '@/app/components/MediaCard';
-import { Sparkles, RefreshCw } from 'lucide-react';
+import React from "react";
+import { useAIRecommendations } from "@/hooks/useAIRecommendations";
+import { MediaItem, LogMetadata, AIInsightItem } from "@/lib/types";
+import MediaCard from "@/app/components/MediaCard";
+import { Sparkles, RefreshCw } from "lucide-react";
 
 interface Props {
   watchlist: MediaItem[];
@@ -41,8 +41,12 @@ export default function AIRecommendationsSection({
         <div className="flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-purple-400" />
           <div>
-            <h3 className="text-base font-bold text-foreground">AI Insight Önerileri</h3>
-            <p className="text-xs text-muted-foreground">Profilinizdeki derin desenlere göre oluşturulan özel seçki.</p>
+            <h3 className="text-base font-bold text-foreground">
+              AI Insight Önerileri
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Profilinizdeki derin desenlere göre oluşturulan özel seçki.
+            </p>
           </div>
         </div>
 
@@ -52,7 +56,9 @@ export default function AIRecommendationsSection({
             disabled={loading}
             className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
+            />
             Yeniden Analiz Et
           </button>
         ) : (
@@ -61,7 +67,7 @@ export default function AIRecommendationsSection({
             disabled={loading}
             className="px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-muted text-white rounded-xl transition-all font-bold text-xs shadow-md"
           >
-            {loading ? 'Analiz Ediliyor...' : 'Önerileri Getir'}
+            {loading ? "Analiz Ediliyor..." : "Önerileri Getir"}
           </button>
         )}
       </div>
@@ -84,7 +90,6 @@ export default function AIRecommendationsSection({
             </div>
           </div>
 
-          {/* Sayfa yapısıyla birebir eşleşen 6 sütunlu grid tasarımı */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
             {data.recommendedItems.map((item: AIInsightItem) => {
               const mediaItem: MediaItem = {
@@ -111,8 +116,11 @@ export default function AIRecommendationsSection({
                     onToggleWatchlist={onToggleWatchlist || (() => {})}
                   />
                   {item.reason && (
-                    <p className="text-[10px] text-purple-300/90 italic bg-purple-950/30 border border-purple-800/30 px-2 py-1.5 rounded-lg leading-tight line-clamp-2" title={item.reason}>
-                      "{item.reason}"
+                    <p
+                      className="text-[10px] text-purple-300/90 italic bg-purple-950/30 border border-purple-800/30 px-2 py-1.5 rounded-lg leading-tight line-clamp-2"
+                      title={item.reason}
+                    >
+                      &quot;{item.reason}&quot;
                     </p>
                   )}
                 </div>

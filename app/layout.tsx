@@ -1,44 +1,44 @@
-import type { Metadata, Viewport } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
-import { Analytics } from '@vercel/analytics/next';
-import { SpeedInsights } from '@vercel/speed-insights/next';
-import './globals.css';
+import type { Metadata, Viewport } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
+import "./globals.css";
 
 const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
 });
 
 const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: 'Backstory - Sinema & Dizi Portfolyosu',
-  description: 'Kişisel film ve dizi takip uygulamanız.',
+  title: "Backstory - Sinema & Dizi Portfolyosu",
+  description: "Kişisel film ve dizi takip uygulamanız.",
   icons: {
     icon: [
-      { url: '/favicon.ico', sizes: 'any' },
-      { url: '/icons/icon-192.png', type: 'image/png' },
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icons/icon-192.png", type: "image/png" },
     ],
-    shortcut: '/favicon.ico',
-    apple: '/icons/apple-icon-180.png',
+    shortcut: "/favicon.ico",
+    apple: "/icons/apple-icon-180.png",
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
-    title: 'Backstory',
+    statusBarStyle: "black-translucent",
+    title: "Backstory",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: '#09090b',
-  width: 'device-width',
+  themeColor: "#09090b",
+  width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  viewportFit: 'cover',
+  viewportFit: "cover",
 };
 
 const themeInitScript = `

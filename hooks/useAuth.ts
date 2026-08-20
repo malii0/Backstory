@@ -1,16 +1,27 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
-import { UserProfile } from '@/lib/types';
-import { fetchUserProfile } from '@/lib/db';
+import { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/lib/supabase";
+import { UserProfile } from "@/lib/types";
+import { fetchUserProfile } from "@/lib/db";
+
+function checkIsInviteOrRecovery() {
+  if (typeof window === "undefined") return false;
+  const hashParams = new URLSearchParams(window.location.hash.substring(1));
+  const type = hashParams.get("type");
+  return type === "invite" || type === "recovery";
+}
 
 export function useAuth() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
-  const [isInviteMode, setIsInviteMode] = useState<boolean>(false);
+  const [isInviteMode, setIsInviteMode] = useState<boolean>(() =>
+    checkIsInviteOrRecovery(),
+  );
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(() =>
+    checkIsInviteOrRecovery(),
+  );
 
   const loadProfile = useCallback(async () => {
     const profile = await fetchUserProfile();
@@ -20,18 +31,11 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
-    let isInviteOrRecovery = false;
-    if (typeof window !== 'undefined') {
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      const type = hashParams.get('type');
-      if (type === 'invite' || type === 'recovery') {
-        isInviteOrRecovery = true;
-        setIsInviteMode(true);
-        setIsAuthModalOpen(true);
-      }
-    }
+    const isInviteOrRecovery = checkIsInviteOrRecovery();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session) {
         setIsAuthenticated(true);
         await loadProfile();

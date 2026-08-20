@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { UserProfile } from '@/lib/types';
-import { updateUserProfile } from '@/lib/db';
-import { useTheme } from '@/hooks/useTheme';
-import { supabase } from '@/lib/supabase';
-import { X, Check, Sun, Moon, Palette, KeyRound, Mail } from 'lucide-react';
+import React, { useState } from "react";
+import { UserProfile } from "@/lib/types";
+import { updateUserProfile } from "@/lib/db";
+import { useTheme } from "@/hooks/useTheme";
+import { supabase } from "@/lib/supabase";
+import { X, Check, Sun, Moon, Palette, KeyRound, Mail } from "lucide-react";
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -14,26 +14,51 @@ interface ProfileModalProps {
   onUpdated: () => void;
 }
 
-const PRESET_EMOJIS = ['🎬', '🍿', '👾', '🚀', '⭐', '🐉', '🎮', '🍕', '🤖', '🎧'];
+const PRESET_EMOJIS = [
+  "🎬",
+  "🍿",
+  "👾",
+  "🚀",
+  "⭐",
+  "🐉",
+  "🎮",
+  "🍕",
+  "🤖",
+  "🎧",
+];
 
-export default function ProfileModal({ isOpen, userProfile, onClose, onUpdated }: ProfileModalProps) {
-  const [displayName, setDisplayName] = useState(userProfile?.displayName || '');
-  const [avatarUrl, setAvatarUrl] = useState(userProfile?.avatarUrl || '🎬');
+export default function ProfileModal({
+  isOpen,
+  userProfile,
+  onClose,
+  onUpdated,
+}: ProfileModalProps) {
+  const [displayName, setDisplayName] = useState(
+    userProfile?.displayName || "",
+  );
+  const [avatarUrl, setAvatarUrl] = useState(userProfile?.avatarUrl || "🎬");
   const [loading, setLoading] = useState(false);
 
-  // Şifre sıfırlama e-postası durumları
   const [passwordLoading, setPasswordLoading] = useState(false);
-  const [passwordMsg, setPasswordMsg] = useState<{ text: string; isError: boolean } | null>(null);
+  const [passwordMsg, setPasswordMsg] = useState<{
+    text: string;
+    isError: boolean;
+  } | null>(null);
 
   const { mode, accent, updateMode, updateAccent, ACCENT_COLORS } = useTheme();
 
-  useEffect(() => {
+  const [prevProfile, setPrevProfile] = useState(userProfile);
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+
+  if (userProfile !== prevProfile || isOpen !== prevIsOpen) {
+    setPrevProfile(userProfile);
+    setPrevIsOpen(isOpen);
     if (userProfile) {
-      setDisplayName(userProfile.displayName || '');
-      setAvatarUrl(userProfile.avatarUrl || '🎬');
+      setDisplayName(userProfile.displayName || "");
+      setAvatarUrl(userProfile.avatarUrl || "🎬");
     }
     setPasswordMsg(null);
-  }, [userProfile, isOpen]);
+  }
 
   if (!isOpen) return null;
 
@@ -53,10 +78,12 @@ export default function ProfileModal({ isOpen, userProfile, onClose, onUpdated }
     setPasswordLoading(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
       if (!user || !user.email) {
-        throw new Error('Kullanıcı e-posta adresi bulunamadı.');
+        throw new Error("Kullanıcı e-posta adresi bulunamadı.");
       }
 
       const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
@@ -66,12 +93,16 @@ export default function ProfileModal({ isOpen, userProfile, onClose, onUpdated }
       if (error) throw error;
 
       setPasswordMsg({
-        text: 'Şifre sıfırlama bağlantısı e-posta adresinize gönderildi.',
+        text: "Şifre sıfırlama bağlantısı e-posta adresinize gönderildi.",
         isError: false,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "E-posta gönderilirken bir hata oluştu.";
       setPasswordMsg({
-        text: err.message || 'E-posta gönderilirken bir hata oluştu.',
+        text: errorMessage,
         isError: true,
       });
     } finally {
@@ -90,11 +121,14 @@ export default function ProfileModal({ isOpen, userProfile, onClose, onUpdated }
         </button>
 
         <div className="text-center space-y-1">
-          <h2 className="text-lg font-bold text-foreground">Profil ve Görünüm</h2>
-          <p className="text-xs text-muted-foreground">Profilini ve uygulama temasını kişiselleştir.</p>
+          <h2 className="text-lg font-bold text-foreground">
+            Profil ve Görünüm
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Profilini ve uygulama temasını kişiselleştir.
+          </p>
         </div>
 
-        {/* TEMA VE RENK AYARLARI */}
         <div className="p-4 rounded-2xl bg-background/60 border border-border space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
@@ -103,18 +137,22 @@ export default function ProfileModal({ isOpen, userProfile, onClose, onUpdated }
             <div className="flex items-center gap-1 bg-card p-1 rounded-xl border border-border">
               <button
                 type="button"
-                onClick={() => updateMode('dark')}
+                onClick={() => updateMode("dark")}
                 className={`p-1.5 rounded-lg text-xs transition-all flex items-center gap-1 cursor-pointer ${
-                  mode === 'dark' ? 'bg-muted text-accent font-bold' : 'text-muted-foreground'
+                  mode === "dark"
+                    ? "bg-muted text-accent font-bold"
+                    : "text-muted-foreground"
                 }`}
               >
                 <Moon className="w-3 h-3" /> Koyu
               </button>
               <button
                 type="button"
-                onClick={() => updateMode('light')}
+                onClick={() => updateMode("light")}
                 className={`p-1.5 rounded-lg text-xs transition-all flex items-center gap-1 cursor-pointer ${
-                  mode === 'light' ? 'bg-muted text-accent font-bold' : 'text-muted-foreground'
+                  mode === "light"
+                    ? "bg-muted text-accent font-bold"
+                    : "text-muted-foreground"
                 }`}
               >
                 <Sun className="w-3 h-3" /> Aydınlık
@@ -128,7 +166,8 @@ export default function ProfileModal({ isOpen, userProfile, onClose, onUpdated }
             </span>
             <div className="flex flex-wrap items-center gap-2">
               {ACCENT_COLORS.map((col) => {
-                const isActive = accent.toLowerCase() === col.value.toLowerCase();
+                const isActive =
+                  accent.toLowerCase() === col.value.toLowerCase();
                 return (
                   <button
                     key={col.id}
@@ -136,11 +175,15 @@ export default function ProfileModal({ isOpen, userProfile, onClose, onUpdated }
                     onClick={() => updateAccent(col.value)}
                     title={col.name}
                     className={`w-7 h-7 rounded-full transition-all flex items-center justify-center border cursor-pointer ${
-                      isActive ? 'ring-2 ring-foreground scale-110 border-transparent' : 'border-border/40'
+                      isActive
+                        ? "ring-2 ring-foreground scale-110 border-transparent"
+                        : "border-border/40"
                     }`}
                     style={{ backgroundColor: col.value }}
                   >
-                    {isActive && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
+                    {isActive && (
+                      <Check className="w-3.5 h-3.5 text-white stroke-[3]" />
+                    )}
                   </button>
                 );
               })}
@@ -158,17 +201,18 @@ export default function ProfileModal({ isOpen, userProfile, onClose, onUpdated }
           </div>
         </div>
 
-        {/* PROFİL FORM */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-3">
-            <label className="block text-xs font-medium text-muted-foreground">Avatar (Emoji)</label>
+            <label className="block text-xs font-medium text-muted-foreground">
+              Avatar (Emoji)
+            </label>
 
             <div className="flex items-center gap-3">
-              <div 
+              <div
                 className="w-14 h-14 bg-background border-2 rounded-2xl flex items-center justify-center text-2xl shadow-inner shrink-0"
                 style={{ borderColor: accent }}
               >
-                {avatarUrl || '🎬'}
+                {avatarUrl || "🎬"}
               </div>
               <div className="flex-1 space-y-1">
                 <input
@@ -190,10 +234,12 @@ export default function ProfileModal({ isOpen, userProfile, onClose, onUpdated }
                   onClick={() => setAvatarUrl(emoji)}
                   className={`text-base p-1.5 rounded-xl transition-all cursor-pointer ${
                     avatarUrl === emoji
-                      ? 'bg-muted border scale-105'
-                      : 'bg-background hover:bg-muted border border-border text-muted-foreground'
+                      ? "bg-muted border scale-105"
+                      : "bg-background hover:bg-muted border border-border text-muted-foreground"
                   }`}
-                  style={{ borderColor: avatarUrl === emoji ? accent : undefined }}
+                  style={{
+                    borderColor: avatarUrl === emoji ? accent : undefined,
+                  }}
                 >
                   {emoji}
                 </button>
@@ -202,7 +248,9 @@ export default function ProfileModal({ isOpen, userProfile, onClose, onUpdated }
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">Takma Adın</label>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">
+              Takma Adın
+            </label>
             <input
               type="text"
               required
@@ -217,13 +265,21 @@ export default function ProfileModal({ isOpen, userProfile, onClose, onUpdated }
             type="submit"
             disabled={loading}
             className="w-full py-2.5 font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 disabled:opacity-50 shadow-lg cursor-pointer"
-            style={{ backgroundColor: accent, color: 'var(--app-accent-foreground)' }}
+            style={{
+              backgroundColor: accent,
+              color: "var(--app-accent-foreground)",
+            }}
           >
-            {loading ? 'Kaydediliyor...' : <><Check className="w-4 h-4" /> Kaydet</>}
+            {loading ? (
+              "Kaydediliyor..."
+            ) : (
+              <>
+                <Check className="w-4 h-4" /> Kaydet
+              </>
+            )}
           </button>
         </form>
 
-        {/* ŞİFRE SIFIRLAMA E-POSTASI BÖLÜMÜ */}
         <div className="pt-3 border-t border-border space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
@@ -232,15 +288,16 @@ export default function ProfileModal({ isOpen, userProfile, onClose, onUpdated }
           </div>
 
           <p className="text-[11px] text-muted-foreground">
-            Şifrenizi değiştirmek için kayıtlı e-posta adresinize sıfırlama bağlantısı gönderebilirsiniz.
+            Şifrenizi değiştirmek için kayıtlı e-posta adresinize sıfırlama
+            bağlantısı gönderebilirsiniz.
           </p>
 
           {passwordMsg && (
             <div
               className={`p-2.5 rounded-xl text-[11px] text-center border ${
                 passwordMsg.isError
-                  ? 'bg-red-950/50 text-red-400 border-red-900/50'
-                  : 'bg-emerald-950/50 text-emerald-400 border-emerald-900/50'
+                  ? "bg-red-950/50 text-red-400 border-red-900/50"
+                  : "bg-emerald-950/50 text-emerald-400 border-emerald-900/50"
               }`}
             >
               {passwordMsg.text}
@@ -254,7 +311,9 @@ export default function ProfileModal({ isOpen, userProfile, onClose, onUpdated }
             className="w-full py-2 px-3 rounded-xl border border-border bg-background hover:bg-muted text-foreground text-xs font-medium transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
             <Mail className="w-3.5 h-3.5 text-accent" />
-            {passwordLoading ? 'E-posta Gönderiliyor...' : 'Şifre Değiştirme Maili Gönder'}
+            {passwordLoading
+              ? "E-posta Gönderiliyor..."
+              : "Şifre Değiştirme Maili Gönder"}
           </button>
         </div>
       </div>

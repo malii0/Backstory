@@ -1,8 +1,9 @@
-'use client';
+"use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { X, Star, Search, Film, Trash2 } from 'lucide-react';
-import { LogMetadata, MediaItem } from '@/lib/types';
+import React, { useState, useMemo } from "react";
+import Image from "next/image";
+import { X, Star, Search, Film, Trash2 } from "lucide-react";
+import { LogMetadata, MediaItem } from "@/lib/types";
 
 interface RatingManagerModalProps {
   isOpen: boolean;
@@ -12,8 +13,8 @@ interface RatingManagerModalProps {
   onSelectItem: (item: MediaItem) => void;
 }
 
-type SortOption = 'rating.desc' | 'rating.asc' | 'updated.desc' | 'title.asc';
-type RatingFilter = 'all' | 'rated' | 'unrated';
+type SortOption = "rating.desc" | "rating.asc" | "updated.desc" | "title.asc";
+type RatingFilter = "all" | "rated" | "unrated";
 
 export default function RatingManagerModal({
   isOpen,
@@ -22,102 +23,121 @@ export default function RatingManagerModal({
   onUpdateRating,
   onSelectItem,
 }: RatingManagerModalProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedMediaType, setSelectedMediaType] = useState<'all' | 'movie' | 'tv'>('all');
-  const [ratingFilter, setRatingFilter] = useState<RatingFilter>('all');
-  const [sortBy, setSortBy] = useState<SortOption>('rating.desc');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedMediaType, setSelectedMediaType] = useState<
+    "all" | "movie" | "tv"
+  >("all");
+  const [ratingFilter, setRatingFilter] = useState<RatingFilter>("all");
+  const [sortBy, setSortBy] = useState<SortOption>("rating.desc");
 
-  // Modal açık olduğu sürece kilitli kalacak eleman KEY sırası
   const [frozenKeys, setFrozenKeys] = useState<string[]>([]);
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
 
-  // Watchlist'te OLMAYAN ve geçerli verisi olan loglar
   const validLogs = useMemo(() => {
     return Object.entries(logs).filter(
-      ([_, log]) => log.itemData && !log.isWatchlist
+      ([, log]) => log.itemData && !log.isWatchlist,
     );
   }, [logs]);
 
-  // Modal ilk açıldığında veya Filtre/Sıralama türü değiştiğinde SRANIN SNAPSHOT'INI AL
-  useEffect(() => {
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
     if (!isOpen) {
       setFrozenKeys([]);
-      return;
+    } else {
+      const sorted = validLogs.map(([key, log]) => ({
+        key,
+        log,
+        item: log.itemData!,
+      }));
+      sorted.sort((a, b) => {
+        if (sortBy === "rating.desc") {
+          if (b.log.rating === a.log.rating) {
+            return (b.log.updatedAt || 0) - (a.log.updatedAt || 0);
+          }
+          return b.log.rating - a.log.rating;
+        }
+        if (sortBy === "rating.asc") {
+          if (a.log.rating === b.log.rating) {
+            return (b.log.updatedAt || 0) - (a.log.updatedAt || 0);
+          }
+          return a.log.rating - b.log.rating;
+        }
+        if (sortBy === "title.asc") {
+          const titleA = a.item.title || a.item.name || "";
+          const titleB = b.item.title || b.item.name || "";
+          return titleA.localeCompare(titleB, "tr");
+        }
+        return (b.log.updatedAt || 0) - (a.log.updatedAt || 0);
+      });
+      setFrozenKeys(sorted.map((i) => i.key));
     }
+  }
 
-    // Eğer zaten kilitlenmiş bir sıramız varsa ve kullanıcı manuel filtre değiştirmediyse sırayı bozma
-    if (frozenKeys.length > 0) return;
-
-    // Doğal Sıralamayı Hesapla
-    const sorted = validLogs.map(([key, log]) => ({ key, log, item: log.itemData! }));
-
+  const handleSortChange = (newSort: SortOption) => {
+    setSortBy(newSort);
+    const sorted = validLogs.map(([key, log]) => ({
+      key,
+      log,
+      item: log.itemData!,
+    }));
     sorted.sort((a, b) => {
-      if (sortBy === 'rating.desc') {
+      if (newSort === "rating.desc") {
         if (b.log.rating === a.log.rating) {
           return (b.log.updatedAt || 0) - (a.log.updatedAt || 0);
         }
         return b.log.rating - a.log.rating;
       }
-      if (sortBy === 'rating.asc') {
+      if (newSort === "rating.asc") {
         if (a.log.rating === b.log.rating) {
           return (b.log.updatedAt || 0) - (a.log.updatedAt || 0);
         }
         return a.log.rating - b.log.rating;
       }
-      if (sortBy === 'title.asc') {
-        const titleA = a.item.title || a.item.name || '';
-        const titleB = b.item.title || b.item.name || '';
-        return titleA.localeCompare(titleB, 'tr');
+      if (newSort === "title.asc") {
+        const titleA = a.item.title || a.item.name || "";
+        const titleB = b.item.title || b.item.name || "";
+        return titleA.localeCompare(titleB, "tr");
       }
       return (b.log.updatedAt || 0) - (a.log.updatedAt || 0);
     });
-
     setFrozenKeys(sorted.map((i) => i.key));
-  }, [isOpen, sortBy, ratingFilter, selectedMediaType]);
-
-  // Filtre/Sıralama değişimlerinde kilitli sırayı sıfırlayıp yeniden hesaplatma tetikleyicileri
-  const handleSortChange = (newSort: SortOption) => {
-    setFrozenKeys([]);
-    setSortBy(newSort);
   };
 
   const handleRatingFilterChange = (newFilter: RatingFilter) => {
-    setFrozenKeys([]);
     setRatingFilter(newFilter);
+    setFrozenKeys([]);
   };
 
-  const handleMediaTypeChange = (type: 'all' | 'movie' | 'tv') => {
-    setFrozenKeys([]);
+  const handleMediaTypeChange = (type: "all" | "movie" | "tv") => {
     setSelectedMediaType(type);
+    setFrozenKeys([]);
   };
 
   const filteredLogs = useMemo(() => {
-    // 1. Güncel log verileriyle eşleştir
     let list = validLogs.map(([key, log]) => ({
       key,
       log,
       item: log.itemData!,
     }));
 
-    // 2. Arama ve Kategori Filtrelerini Uygula
-    if (ratingFilter === 'rated') {
+    if (ratingFilter === "rated") {
       list = list.filter(({ log }) => log.rating > 0);
-    } else if (ratingFilter === 'unrated') {
+    } else if (ratingFilter === "unrated") {
       list = list.filter(({ log }) => log.rating === 0);
     }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter(({ item }) => {
-        const title = (item.title || item.name || '').toLowerCase();
+        const title = (item.title || item.name || "").toLowerCase();
         return title.includes(q);
       });
     }
 
-    if (selectedMediaType !== 'all') {
+    if (selectedMediaType !== "all") {
       list = list.filter(({ item }) => item.media_type === selectedMediaType);
     }
 
-    // 3. Kilitlenmiş anahtar sırasına (frozenKeys) göre diz
     if (frozenKeys.length > 0) {
       const orderMap = new Map(frozenKeys.map((k, idx) => [k, idx]));
       list.sort((a, b) => {
@@ -131,12 +151,18 @@ export default function RatingManagerModal({
   }, [validLogs, searchQuery, selectedMediaType, ratingFilter, frozenKeys]);
 
   const ratedCount = useMemo(
-    () => validLogs.filter(([_, l]) => l.rating > 0).length,
-    [validLogs]
+    () =>
+      Object.values(logs).filter(
+        (l) => l.itemData && !l.isWatchlist && l.rating > 0,
+      ).length,
+    [logs],
   );
   const unratedCount = useMemo(
-    () => validLogs.filter(([_, l]) => l.rating === 0).length,
-    [validLogs]
+    () =>
+      Object.values(logs).filter(
+        (l) => l.itemData && !l.isWatchlist && l.rating === 0,
+      ).length,
+    [logs],
   );
 
   if (!isOpen) return null;
@@ -156,10 +182,16 @@ export default function RatingManagerModal({
               <Star className="w-5 h-5 fill-accent" />
             </div>
             <div>
-              <h2 className="text-lg font-extrabold text-foreground">Yönetim</h2>
+              <h2 className="text-lg font-extrabold text-foreground">
+                Yönetim
+              </h2>
               <p className="text-xs text-muted-foreground">
-                <span className="text-accent font-bold">{ratedCount}</span> Puanlandı •{' '}
-                <span className="text-muted-foreground font-bold">{unratedCount}</span> Puan Bekliyor
+                <span className="text-accent font-bold">{ratedCount}</span>{" "}
+                Puanlandı •{" "}
+                <span className="text-muted-foreground font-bold">
+                  {unratedCount}
+                </span>{" "}
+                Puan Bekliyor
               </p>
             </div>
           </div>
@@ -184,7 +216,7 @@ export default function RatingManagerModal({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             {searchQuery && (
               <button
-                onClick={() => setSearchQuery('')}
+                onClick={() => setSearchQuery("")}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 <X className="w-3.5 h-3.5" />
@@ -195,31 +227,31 @@ export default function RatingManagerModal({
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-1 bg-card border border-border p-1 rounded-xl">
               <button
-                onClick={() => handleRatingFilterChange('all')}
+                onClick={() => handleRatingFilterChange("all")}
                 className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
-                  ratingFilter === 'all'
-                    ? 'bg-muted text-accent'
-                    : 'text-muted-foreground hover:text-foreground'
+                  ratingFilter === "all"
+                    ? "bg-muted text-accent"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 Tümü ({ratedCount + unratedCount})
               </button>
               <button
-                onClick={() => handleRatingFilterChange('rated')}
+                onClick={() => handleRatingFilterChange("rated")}
                 className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
-                  ratingFilter === 'rated'
-                    ? 'bg-muted text-accent'
-                    : 'text-muted-foreground hover:text-foreground'
+                  ratingFilter === "rated"
+                    ? "bg-muted text-accent"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 Puanlananlar ({ratedCount})
               </button>
               <button
-                onClick={() => handleRatingFilterChange('unrated')}
+                onClick={() => handleRatingFilterChange("unrated")}
                 className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
-                  ratingFilter === 'unrated'
-                    ? 'bg-muted text-accent'
-                    : 'text-muted-foreground hover:text-foreground'
+                  ratingFilter === "unrated"
+                    ? "bg-muted text-accent"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 Puan Verilmeyenler ({unratedCount})
@@ -229,25 +261,31 @@ export default function RatingManagerModal({
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1 bg-card border border-border p-1 rounded-xl">
                 <button
-                  onClick={() => handleMediaTypeChange('all')}
+                  onClick={() => handleMediaTypeChange("all")}
                   className={`px-2 py-0.5 rounded-md font-semibold ${
-                    selectedMediaType === 'all' ? 'text-accent bg-muted' : 'text-muted-foreground'
+                    selectedMediaType === "all"
+                      ? "text-accent bg-muted"
+                      : "text-muted-foreground"
                   }`}
                 >
                   Tümü
                 </button>
                 <button
-                  onClick={() => handleMediaTypeChange('movie')}
+                  onClick={() => handleMediaTypeChange("movie")}
                   className={`px-2 py-0.5 rounded-md font-semibold ${
-                    selectedMediaType === 'movie' ? 'text-accent bg-muted' : 'text-muted-foreground'
+                    selectedMediaType === "movie"
+                      ? "text-accent bg-muted"
+                      : "text-muted-foreground"
                   }`}
                 >
                   Film
                 </button>
                 <button
-                  onClick={() => handleMediaTypeChange('tv')}
+                  onClick={() => handleMediaTypeChange("tv")}
                   className={`px-2 py-0.5 rounded-md font-semibold ${
-                    selectedMediaType === 'tv' ? 'text-accent bg-muted' : 'text-muted-foreground'
+                    selectedMediaType === "tv"
+                      ? "text-accent bg-muted"
+                      : "text-muted-foreground"
                   }`}
                 >
                   Dizi
@@ -275,16 +313,20 @@ export default function RatingManagerModal({
             </div>
           ) : (
             filteredLogs.map(({ item, log }) => {
-              const title = item.title || item.name || 'İsimsiz İçerik';
-              const releaseYear = (item.release_date || item.first_air_date || '').split('-')[0];
+              const title = item.title || item.name || "İsimsiz İçerik";
+              const releaseYear = (
+                item.release_date ||
+                item.first_air_date ||
+                ""
+              ).split("-")[0];
 
               return (
                 <div
                   key={`${item.media_type}_${item.id}`}
                   className={`border rounded-2xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all group ${
                     log.rating > 0
-                      ? 'bg-card/70 border-border/80 hover:border-border'
-                      : 'bg-background/40 border-border/40 hover:border-accent/30'
+                      ? "bg-card/70 border-border/80 hover:border-border"
+                      : "bg-background/40 border-border/40 hover:border-accent/30"
                   }`}
                 >
                   <div
@@ -295,11 +337,15 @@ export default function RatingManagerModal({
                     className="flex items-center gap-3 min-w-0 cursor-pointer flex-1"
                   >
                     {item.poster_path ? (
-                      <img
-                        src={`https://image.tmdb.org/t/p/w92${item.poster_path}`}
-                        alt={title}
-                        className="w-10 h-14 object-cover rounded-xl border border-border flex-shrink-0 group-hover:scale-105 transition-transform"
-                      />
+                      <div className="w-10 h-14 relative flex-shrink-0">
+                        <Image
+                          src={`https://image.tmdb.org/t/p/w92${item.poster_path}`}
+                          alt={title}
+                          fill
+                          sizes="40px"
+                          className="object-cover rounded-xl border border-border group-hover:scale-105 transition-transform"
+                        />
+                      </div>
                     ) : (
                       <div className="w-10 h-14 bg-background rounded-xl border border-border flex items-center justify-center text-muted-foreground flex-shrink-0">
                         <Film className="w-5 h-5" />
@@ -312,10 +358,12 @@ export default function RatingManagerModal({
                       </h4>
                       <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
                         <span className="uppercase font-bold text-accent/80">
-                          {item.media_type === 'tv' ? 'Dizi' : 'Film'}
+                          {item.media_type === "tv" ? "Dizi" : "Film"}
                         </span>
                         {releaseYear && <span>• {releaseYear}</span>}
-                        {log.isCompleted && <span className="text-emerald-400">• İzlendi</span>}
+                        {log.isCompleted && (
+                          <span className="text-emerald-400">• İzlendi</span>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -332,8 +380,8 @@ export default function RatingManagerModal({
                           <Star
                             className={`w-3.5 h-3.5 ${
                               log.rating >= star
-                                ? 'text-accent fill-accent'
-                                : 'text-muted border-border hover:text-muted-foreground'
+                                ? "text-accent fill-accent"
+                                : "text-muted border-border hover:text-muted-foreground"
                             }`}
                           />
                         </button>
@@ -343,10 +391,12 @@ export default function RatingManagerModal({
                     <div className="flex items-center gap-2">
                       <span
                         className={`text-xs font-black min-w-[2.5rem] text-right ${
-                          log.rating > 0 ? 'text-accent' : 'text-muted-foreground font-normal'
+                          log.rating > 0
+                            ? "text-accent"
+                            : "text-muted-foreground font-normal"
                         }`}
                       >
-                        {log.rating > 0 ? `${log.rating}/10` : 'Puan Yok'}
+                        {log.rating > 0 ? `${log.rating}/10` : "Puan Yok"}
                       </span>
 
                       {log.rating > 0 && (
