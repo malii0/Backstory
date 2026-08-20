@@ -35,7 +35,11 @@ export function useAIRecommendations(userId?: string) {
           body: JSON.stringify({ watchlist, favorites, loggedKeys }),
         });
 
-        if (!res.ok) throw new Error("AI Önerileri alınamadı.");
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || "AI Önerileri alınamadı.");
+        }
+
         const result: AIInsightResponse = await res.json();
 
         sessionStorage.setItem(cacheKey, JSON.stringify(result));
