@@ -11,7 +11,7 @@ import { Database } from "@/lib/database.types";
 
 export function useMediaLogs(
   isAuthenticated: boolean,
-  showToast: (msg: string, canUndo?: boolean) => void,
+  showToast: (msg: string) => void,
 ) {
   const [logs, setLogs] = useState<Record<string, LogMetadata>>({});
   const [isLogsLoading, setIsLogsLoading] = useState(true);
@@ -246,7 +246,6 @@ export function useMediaLogs(
         !isComp
           ? `"${title}" izlendi olarak işaretlendi.`
           : `"${title}" izlenenlerden çıkarıldı.`,
-        true,
       );
     },
     [logs, getItemKey, updateLog, showToast],
@@ -275,7 +274,6 @@ export function useMediaLogs(
         !currentLog?.isWatchlist
           ? `"${title}" izleneceklere eklendi.`
           : `"${title}" listeden çıkarıldı.`,
-        true,
       );
     },
     [logs, getItemKey, updateLog, showToast],
@@ -308,7 +306,7 @@ export function useMediaLogs(
       );
 
       if (rawRating > 0) {
-        showToast(`"${title}" içeriğine ${rawRating} puan verildi.`, true);
+        showToast(`"${title}" içeriğine ${rawRating} puan verildi.`);
       }
     },
     [logs, getItemKey, updateLog, showToast],
@@ -332,7 +330,7 @@ export function useMediaLogs(
         detailData,
       );
 
-      showToast(`"${title}" ${count} kez izlendi olarak güncellendi.`, true);
+      showToast(`"${title}" ${count} kez izlendi olarak güncellendi.`);
     },
     [updateLog, showToast],
   );
