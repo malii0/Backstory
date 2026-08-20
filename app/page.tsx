@@ -60,6 +60,8 @@ export default function Home() {
   const [showFab, setShowFab] = useState(false);
   const [activityFeed, setActivityFeed] = useState<ActivityFeedItem[]>([]);
   const [isFeedLoading, setIsFeedLoading] = useState(false);
+  const lastFeedFetchRef = useRef<number>(0);
+
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isRatingManagerOpen, setIsRatingManagerOpen] = useState(false);
   const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
@@ -236,8 +238,14 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScrollFab);
   }, []);
 
+  // Aktivite Akışı: 2 dakikalık önbellek süresi
   useEffect(() => {
     if (activeTab !== "feed" || !auth.isAuthenticated) return;
+
+    const now = Date.now();
+    if (now - lastFeedFetchRef.current < 120000 && activityFeed.length > 0) {
+      return;
+    }
 
     let isMounted = true;
     const fetchFeed = async () => {
@@ -246,6 +254,7 @@ export default function Home() {
         const feed = await fetchActivityFeed();
         if (isMounted) {
           setActivityFeed(feed);
+          lastFeedFetchRef.current = Date.now();
         }
       } catch (err) {
         console.error("Akış verisi yüklenemedi:", err);
@@ -261,7 +270,7 @@ export default function Home() {
     return () => {
       isMounted = false;
     };
-  }, [activeTab, auth.isAuthenticated]);
+  }, [activeTab, auth.isAuthenticated, activityFeed.length]);
 
   useEffect(() => {
     if (
@@ -362,6 +371,7 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [handleScroll]);
 
+  // Tekilleştirilmiş ve optimize edilmiş detay getirme fonksiyonu
   const fetchDetails = useCallback(async () => {
     if (!selectedItem) {
       setDetailData(null);
@@ -393,46 +403,10 @@ export default function Home() {
   }, [selectedItem]);
 
   useEffect(() => {
-    if (!selectedItem) return;
-
-    let isMounted = true;
-    const loadDetails = async () => {
-      setIsDetailLoading(true);
-      setDetailError(null);
-
-      const type = selectedItem.media_type || "movie";
-      const proxyParams = new URLSearchParams({
-        endpoint: `/${type}/${selectedItem.id}`,
-        append_to_response:
-          "recommendations,similar,videos,watch/providers,external_ids,credits,images",
-        include_image_language: "en,null",
-      });
-
-      try {
-        const res = await fetch(`/api/tmdb?${proxyParams.toString()}`);
-        if (!res.ok) throw new Error("Detay verisi alınamadı.");
-        const data = await res.json();
-        if (isMounted) {
-          setDetailData({ ...data, media_type: type });
-        }
-      } catch (err: unknown) {
-        if (isMounted) {
-          const msg = err instanceof Error ? err.message : "Bir hata oluştu.";
-          setDetailError(msg);
-        }
-      } finally {
-        if (isMounted) {
-          setIsDetailLoading(false);
-        }
-      }
-    };
-
-    loadDetails();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedItem]);
+    if (selectedItem) {
+      fetchDetails();
+    }
+  }, [selectedItem, fetchDetails]);
 
   const displayedItems = useMemo(() => {
     if (activeTab === "explore") {
@@ -505,7 +479,7 @@ export default function Home() {
         const providers = itemProvidersMap[key];
         return providers
           ? providers.includes(explore.selectedProviderId!)
-          : true;
+          : false;
       });
     }
 
@@ -518,6 +492,9 @@ export default function Home() {
       }
       if (explore.sortBy === "vote_average.desc") {
         return (b.item.vote_average || 0) - (a.item.vote_average || 0);
+      }
+      if (explore.sortBy === "vote_count.desc") {
+        return (b.item.vote_count || 0) - (a.item.vote_count || 0);
       }
       return (b.log.updatedAt || 0) - (a.log.updatedAt || 0);
     });
@@ -1361,10 +1338,14 @@ export default function Home() {
                       {activeTab === "explore"
                         ? [
                             { id: "popularity.desc", label: "Popülerlik" },
-                            { id: "release_date.desc", label: "Yeni Çıkanlar" },
-                            { id: "vote_count.desc", label: "Çok Oy Alanlar" },
-                            { id: "top_rated", label: "Top 250" },
-                            { id: "vote_average.desc", label: "TMDB Puanı" },
+                            {
+                              id: "vote_average.desc",
+                              label: "Tüm Zamanların En İyileri",
+                            },
+                            {
+                              id: "vote_count.desc",
+                              label: "En Çok Oylananlar",
+                            },
                           ].map((sortOption) => (
                             <button
                               key={sortOption.id}

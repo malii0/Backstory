@@ -21,6 +21,14 @@ export const DEFAULT_YEAR_RANGE: YearRange = {
 export function useTmdbExplore(activeTab: ActiveTab) {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+
+  const [yearRange, setYearRange] = useState<YearRange>(DEFAULT_YEAR_RANGE);
+  const [debouncedYearRange, setDebouncedYearRange] =
+    useState<YearRange>(DEFAULT_YEAR_RANGE);
+
+  const [minRating, setMinRating] = useState<number>(0);
+  const [debouncedMinRating, setDebouncedMinRating] = useState<number>(0);
+
   const [searchResults, setSearchResults] = useState<MediaItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
@@ -43,14 +51,10 @@ export function useTmdbExplore(activeTab: ActiveTab) {
     "all" | "movie" | "tv"
   >("all");
   const [selectedGenreId, setSelectedGenreId] = useState<number | null>(null);
-  const [yearRange, setYearRange] = useState<YearRange>(DEFAULT_YEAR_RANGE);
-  const [minRating, setMinRating] = useState<number>(0);
   const [sortBy, setSortBy] = useState<
     | "popularity.desc"
-    | "release_date.desc"
-    | "vote_count.desc"
     | "vote_average.desc"
-    | "top_rated"
+    | "vote_count.desc"
     | "my_rating.desc"
     | "watch_count.desc"
     | "updated_at.desc"
@@ -73,9 +77,8 @@ export function useTmdbExplore(activeTab: ActiveTab) {
       setExploreMode("standard");
       if (
         sortBy === "popularity.desc" ||
-        sortBy === "release_date.desc" ||
         sortBy === "vote_count.desc" ||
-        sortBy === "top_rated"
+        sortBy === "vote_average.desc"
       ) {
         setSortBy("updated_at.desc");
       }
@@ -90,12 +93,29 @@ export function useTmdbExplore(activeTab: ActiveTab) {
     }
   }
 
+  // Arama metni debounce
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQuery(query);
     }, 350);
     return () => clearTimeout(timer);
   }, [query]);
+
+  // Yıl aralığı debounce (Sürükleme anında aşırı istek gitmesini önler)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedYearRange(yearRange);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [yearRange]);
+
+  // Puan slider'ı debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedMinRating(minRating);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [minRating]);
 
   useEffect(() => {
     const fetchProviders = async () => {
@@ -138,6 +158,10 @@ export function useTmdbExplore(activeTab: ActiveTab) {
     yearRange.start !== DEFAULT_YEAR_RANGE.start ||
     yearRange.end !== DEFAULT_YEAR_RANGE.end;
 
+  const isDebouncedYearRangeActive =
+    debouncedYearRange.start !== DEFAULT_YEAR_RANGE.start ||
+    debouncedYearRange.end !== DEFAULT_YEAR_RANGE.end;
+
   const activeFilterCount = useMemo(() => {
     return [
       selectedMediaType !== "all",
@@ -166,7 +190,9 @@ export function useTmdbExplore(activeTab: ActiveTab) {
     setSelectedGenreId(null);
     setSelectedProviderId(null);
     setYearRange(DEFAULT_YEAR_RANGE);
+    setDebouncedYearRange(DEFAULT_YEAR_RANGE);
     setMinRating(0);
+    setDebouncedMinRating(0);
     setExploreMode("standard");
     setSortBy(activeTab === "explore" ? "popularity.desc" : "updated_at.desc");
   }, [activeTab]);
@@ -210,20 +236,19 @@ export function useTmdbExplore(activeTab: ActiveTab) {
           proxyParams.append("page", pageNum.toString());
         } else {
           const type = selectedMediaType === "tv" ? "tv" : "movie";
+
+          // "Tüm Zamanların En İyileri" seçilince film için 3000, dizi için 800 oy barajı
           let minVotes = 0;
+          if (sortBy === "vote_average.desc") {
+            minVotes = type === "tv" ? 800 : 3000;
+          }
+
           let effectiveSortBy =
             sortBy === "my_rating.desc" ||
             sortBy === "watch_count.desc" ||
             sortBy === "updated_at.desc"
               ? "popularity.desc"
               : sortBy;
-
-          if (sortBy === "top_rated") {
-            minVotes = 10000;
-            effectiveSortBy = "vote_average.desc";
-          } else if (sortBy === "vote_average.desc") {
-            minVotes = 3000;
-          }
 
           proxyParams.append("endpoint", `/discover/${type}`);
           proxyParams.append("page", pageNum.toString());
@@ -232,8 +257,11 @@ export function useTmdbExplore(activeTab: ActiveTab) {
 
           if (selectedGenreId)
             proxyParams.append("with_genres", selectedGenreId.toString());
-          if (minRating > 0)
-            proxyParams.append("vote_average.gte", minRating.toString());
+          if (debouncedMinRating > 0)
+            proxyParams.append(
+              "vote_average.gte",
+              debouncedMinRating.toString(),
+            );
 
           if (selectedProviderId) {
             proxyParams.append(
@@ -245,9 +273,15 @@ export function useTmdbExplore(activeTab: ActiveTab) {
 
           const dateKey =
             type === "movie" ? "primary_release_date" : "first_air_date";
-          if (isYearRangeActive) {
-            proxyParams.append(`${dateKey}.gte`, `${yearRange.start}-01-01`);
-            proxyParams.append(`${dateKey}.lte`, `${yearRange.end}-12-31`);
+          if (isDebouncedYearRangeActive) {
+            proxyParams.append(
+              `${dateKey}.gte`,
+              `${debouncedYearRange.start}-01-01`,
+            );
+            proxyParams.append(
+              `${dateKey}.lte`,
+              `${debouncedYearRange.end}-12-31`,
+            );
           }
         }
 
@@ -319,10 +353,10 @@ export function useTmdbExplore(activeTab: ActiveTab) {
       selectedMediaType,
       sortBy,
       selectedGenreId,
-      minRating,
+      debouncedMinRating,
       selectedProviderId,
-      isYearRangeActive,
-      yearRange,
+      isDebouncedYearRangeActive,
+      debouncedYearRange,
       activeTab,
     ],
   );
@@ -347,8 +381,8 @@ export function useTmdbExplore(activeTab: ActiveTab) {
     selectedMediaType,
     selectedGenreId,
     selectedProviderId,
-    yearRange,
-    minRating,
+    debouncedYearRange,
+    debouncedMinRating,
     sortBy,
     exploreMode,
     activeTab,
