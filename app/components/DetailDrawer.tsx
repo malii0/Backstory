@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { MediaItem, MediaDetail, LogMetadata, Collection } from "@/lib/types";
 import { getEffectiveWatchCount } from "@/lib/utils";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 interface DetailDrawerProps {
   selectedItem: MediaItem;
@@ -193,7 +194,7 @@ export default function DetailDrawer({
     let isMounted = true;
     const fetchCollection = async () => {
       try {
-        const res = await fetch(
+        const res = await fetchWithAuth(
           `/api/tmdb?endpoint=/collection/${collectionId}`,
         );
         if (res.ok && isMounted) {
@@ -228,7 +229,7 @@ export default function DetailDrawer({
       setIsFilmographyLoading(true);
       setFilmographyLimit(15);
       try {
-        const res = await fetch(
+        const res = await fetchWithAuth(
           `/api/tmdb?endpoint=/person/${activePerson.id}/combined_credits`,
         );
         if (res.ok && isMounted) {
