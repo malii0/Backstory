@@ -54,6 +54,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMediaLogs } from "@/hooks/useMediaLogs";
 import { useTmdbExplore, DEFAULT_YEAR_RANGE } from "@/hooks/useTmdbExplore";
 import { useRecommendations } from "@/hooks/useRecommendations";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 interface ToastItem {
   id: string;
@@ -197,7 +198,7 @@ export default function Home() {
             if (!log.itemData) return null;
             try {
               const type = log.itemData.media_type || "movie";
-              const res = await fetch(
+              const res = await fetchWithAuth(
                 `/api/tmdb?endpoint=/${type}/${log.itemData.id}/watch/providers`,
               );
               if (res.ok) {
@@ -399,7 +400,7 @@ export default function Home() {
         include_image_language: "en,null",
       });
 
-      const res = await fetch(`/api/tmdb?${proxyParams.toString()}`);
+      const res = await fetchWithAuth(`/api/tmdb?${proxyParams.toString()}`);
       if (!res.ok) throw new Error("Detay verisi alınamadı.");
       const data = await res.json();
       setDetailData({ ...data, media_type: type });
@@ -566,7 +567,6 @@ export default function Home() {
           <div className="bg-card border border-border p-6 rounded-3xl max-w-md w-full space-y-4 text-left shadow-2xl relative animate-in fade-in zoom-in-95">
             <button
               onClick={() => setIsPrivacyModalOpen(false)}
-              aria-label="Kapat"
               className="absolute top-4 right-4 text-muted-foreground hover:text-foreground p-1"
             >
               <X className="w-4 h-4" />
@@ -623,7 +623,6 @@ export default function Home() {
               {logsManager.previousLogsRef.current && (
                 <button
                   onClick={handleUndo}
-                  aria-label="Son işlemi geri al"
                   className="bg-accent/20 hover:bg-accent/30 text-accent px-2.5 py-1 rounded-lg text-[11px] font-bold border border-accent/30 transition-all flex items-center gap-1 flex-shrink-0 ml-auto"
                 >
                   <RotateCcw className="w-3 h-3" /> Geri Al
@@ -637,7 +636,6 @@ export default function Home() {
       {showFab && activeTab !== "stats" && activeTab !== "feed" && (
         <button
           onClick={() => explore.setShowFilters(true)}
-          aria-label="Filtreleme panelini aç"
           className="fixed bottom-6 right-6 z-40 bg-accent text-accent-foreground font-bold px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 border border-accent/30 transition-all transform hover:scale-105 active:scale-95 animate-in fade-in zoom-in-90"
         >
           <SlidersHorizontal className="w-4 h-4" />
@@ -655,7 +653,6 @@ export default function Home() {
           <div className="bg-card border border-border p-6 rounded-3xl max-w-sm w-full space-y-4 text-center shadow-2xl relative animate-in fade-in zoom-in-95">
             <button
               onClick={() => setRandomPick(null)}
-              aria-label="Kapat"
               className="absolute top-4 right-4 text-muted-foreground hover:text-foreground p-1"
             >
               <X className="w-4 h-4" />
@@ -690,7 +687,6 @@ export default function Home() {
               </button>
               <button
                 onClick={handlePickRandomFromWatchlist}
-                aria-label="Tekrar rastgele film seç"
                 className="bg-muted hover:bg-muted/80 text-foreground p-2.5 rounded-xl border border-border transition-colors"
                 title="Tekrar Zar At"
               >
@@ -746,7 +742,6 @@ export default function Home() {
 
                 <button
                   onClick={() => setIsPrivacyModalOpen(true)}
-                  aria-label="Gizlilik & KVKK Aydınlatması"
                   title="Gizlilik & KVKK Aydınlatması"
                   className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-accent hover:border-border/80 transition-all flex items-center justify-center"
                 >
@@ -816,7 +811,6 @@ export default function Home() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setIsProfileModalOpen(true)}
-                  aria-label="Profilini Düzenle"
                   title="Profilini Düzenle"
                   className="px-3 py-2 rounded-xl bg-card border border-border text-foreground hover:text-accent transition-colors flex items-center gap-2 text-xs font-semibold flex-shrink-0"
                 >
@@ -829,7 +823,6 @@ export default function Home() {
                 </button>
                 <button
                   onClick={auth.handleLogout}
-                  aria-label="Çıkış Yap"
                   title="Çıkış Yap"
                   className="p-2.5 rounded-xl bg-card border border-border text-muted-foreground hover:text-red-400 transition-colors flex-shrink-0"
                 >
@@ -955,7 +948,6 @@ export default function Home() {
                     {explore.query ? (
                       <button
                         onClick={() => explore.setQuery("")}
-                        aria-label="Aramayı temizle"
                         className="text-muted-foreground hover:text-foreground p-1"
                       >
                         <X className="w-4 h-4" />
@@ -970,7 +962,6 @@ export default function Home() {
 
                 <button
                   onClick={() => explore.setShowFilters(!explore.showFilters)}
-                  aria-label="Filtreleme panelini aç"
                   className={`relative p-3 rounded-2xl border transition-all flex items-center justify-center flex-shrink-0 ${
                     explore.showFilters || explore.activeFilterCount > 0
                       ? "bg-accent/10 border-accent/30 text-accent"
@@ -1115,7 +1106,6 @@ export default function Home() {
                   </h3>
                   <button
                     onClick={() => explore.setShowFilters(false)}
-                    aria-label="Filtre panelini kapat"
                     className="p-1 text-muted-foreground hover:text-foreground rounded-lg bg-muted/60"
                   >
                     <X className="w-4 h-4" />
@@ -1145,7 +1135,6 @@ export default function Home() {
                     {explore.query && (
                       <button
                         onClick={() => explore.setQuery("")}
-                        aria-label="Arama metnini sil"
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                       >
                         <X className="w-3.5 h-3.5" />

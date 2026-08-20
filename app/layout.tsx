@@ -17,6 +17,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Backstory - Sinema & Dizi Portfolyosu",
   description: "Kişisel film ve dizi takip uygulamanız.",
+  robots: {
+    index: false,
+    follow: false,
+  },
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },

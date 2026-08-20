@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { AIInsightResponse, MediaItem } from "@/lib/types";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 export function useAIRecommendations(userId?: string) {
   const [data, setData] = useState<AIInsightResponse | null>(null);
@@ -29,7 +30,7 @@ export function useAIRecommendations(userId?: string) {
       setError(null);
 
       try {
-        const res = await fetch("/api/ai-recommend", {
+        const res = await fetchWithAuth("/api/ai-recommend", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ watchlist, favorites, loggedKeys }),

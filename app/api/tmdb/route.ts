@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
@@ -17,6 +18,25 @@ const ALLOWED_PATTERNS = [
 ];
 
 export async function GET(request: NextRequest) {
+  // --- AUTH KONTROLÜ BAŞLANGIÇ ---
+  const authHeader = request.headers.get("authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Yetkisiz erişim." }, { status: 401 });
+  }
+  const token = authHeader.split(" ")[1];
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser(token);
+
+  if (authError || !user) {
+    return NextResponse.json(
+      { error: "Geçersiz veya süresi dolmuş oturum." },
+      { status: 401 },
+    );
+  }
+  // --- AUTH KONTROLÜ BİTİŞ ---
+
   if (!TMDB_API_KEY) {
     return NextResponse.json(
       { error: "Server configuration error: TMDB API Key is missing." },

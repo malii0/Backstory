@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { MediaItem, ActiveTab } from "@/lib/types";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 export type YearRange = { start: number; end: number };
 export type ExploreMode =
@@ -120,7 +121,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
   useEffect(() => {
     const fetchProviders = async () => {
       try {
-        const res = await fetch(
+        const res = await fetchWithAuth(
           "/api/tmdb?endpoint=/watch/providers/movie&watch_region=TR",
         );
         if (res.ok) {
@@ -137,7 +138,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
   useEffect(() => {
     const fetchNowPlayingIds = async () => {
       try {
-        const res = await fetch(
+        const res = await fetchWithAuth(
           `/api/tmdb?endpoint=/movie/now_playing&region=TR`,
         );
         if (res.ok) {
@@ -285,7 +286,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
           }
         }
 
-        const res = await fetch(`/api/tmdb?${proxyParams.toString()}`, {
+        const res = await fetchWithAuth(`/api/tmdb?${proxyParams.toString()}`, {
           signal: controller.signal,
         });
 

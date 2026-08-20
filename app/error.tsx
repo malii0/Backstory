@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
+import { useEffect } from "react";
 
 export default function Error({
   error,
@@ -10,7 +10,8 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Next.js App Error:', error);
+    // Hatayı sadece konsola yazdırıyoruz, arayüzde göstermiyoruz.
+    console.error("Next.js App Error:", error);
   }, [error]);
 
   return (
@@ -19,13 +20,14 @@ export default function Error({
         <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 font-bold text-xl mx-auto mb-2">
           !
         </div>
-        
+
         <h2 className="text-lg font-bold text-zinc-100">
           Bir şeyler ters gitti
         </h2>
-        
+
         <p className="text-xs text-zinc-400 max-w-xs mx-auto leading-relaxed">
-          {error.message || 'Veriler yüklenirken beklenmeyen bir hata oluştu.'}
+          Beklenmeyen bir hata oluştu. Lütfen bağlantınızı kontrol edip tekrar
+          deneyin.
         </p>
 
         <button

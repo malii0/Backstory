@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateObject } from "ai";
 import { z } from "zod";
+import { supabase } from "@/lib/supabase";
 
 interface ItemRef {
   title?: string;
@@ -26,13 +27,45 @@ const google = createGoogleGenerativeAI({
   apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
 });
 
+// Zod Doğrulama ve Yük Sınırlandırması (Maksimum 30 öğe)
+const requestSchema = z.object({
+  watchlist: z.array(z.any()).max(30).default([]),
+  favorites: z.array(z.any()).max(30).default([]),
+  loggedKeys: z.array(z.string()).max(1000).default([]),
+});
+
 export async function POST(req: Request) {
   try {
+    // --- AUTH KONTROLÜ BAŞLANGIÇ ---
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Yetkisiz erişim." }, { status: 401 });
+    }
+    const token = authHeader.split(" ")[1];
     const {
-      watchlist = [],
-      favorites = [],
-      loggedKeys = [],
-    } = await req.json();
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Geçersiz veya süresi dolmuş oturum." },
+        { status: 401 },
+      );
+    }
+    // --- AUTH KONTROLÜ BİTİŞ ---
+
+    const body = await req.json().catch(() => ({}));
+    const parsed = requestSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Geçersiz istek veya limit aşıldı." },
+        { status: 400 },
+      );
+    }
+
+    const { watchlist, favorites, loggedKeys } = parsed.data;
 
     if (watchlist.length === 0 && favorites.length === 0) {
       return NextResponse.json({
@@ -78,7 +111,6 @@ Watchlist: ${JSON.stringify(watchlist.map((w: ItemRef) => w.title || w.name))}
       "drama",
     ];
     const rawSuggestions = pass1Result.object.suggestions || [];
-
     const tmdbApiKey = process.env.TMDB_API_KEY;
     const loggedSet = new Set<string>(loggedKeys);
 
@@ -91,19 +123,15 @@ Watchlist: ${JSON.stringify(watchlist.map((w: ItemRef) => w.title || w.name))}
         const data = await res.json();
         const firstResult = data.results?.[0];
         if (!firstResult) return null;
-
-        return {
-          ...firstResult,
-          media_type: searchType,
-        };
+        return { ...firstResult, media_type: searchType };
       } catch {
         return null;
       }
     });
 
     const searchedItems = (await Promise.all(searchPromises)).filter(Boolean);
-
     const candidatesMap = new Map<string, CandidateItem>();
+
     for (const item of searchedItems) {
       const uniqueKey = `${item.media_type}_${item.id}`;
       if (!loggedSet.has(uniqueKey) && !candidatesMap.has(uniqueKey)) {
@@ -208,8 +236,13 @@ For EACH candidate, explain in EXACTLY 1 concise sentence in TURKISH why it matc
     });
   } catch (error: unknown) {
     console.error("AI RECOMMEND API ERROR DETAILS:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "AI Insight hatası oluştu";
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    // İç hata mesajları yerine jenerik mesaj (Güvenlik iyileştirmesi)
+    return NextResponse.json(
+      {
+        error:
+          "Sistemde beklenmeyen bir hata oluştu. Lütfen daha sonra tekrar deneyin.",
+      },
+      { status: 500 },
+    );
   }
 }

@@ -146,9 +146,6 @@ function MediaCardComponent({
         <div className="absolute top-2 right-2 flex flex-col gap-1.5 opacity-100 [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100 transition-opacity z-20">
           <button
             onClick={handleCompleted}
-            aria-label={
-              isCompleted ? "İzlenenlerden Çıkar" : "İzlendi İşaretle"
-            }
             style={
               isCompleted
                 ? {
@@ -169,9 +166,6 @@ function MediaCardComponent({
           </button>
           <button
             onClick={handleWatchlist}
-            aria-label={
-              isWatchlist ? "İzleme Listesinden Çıkar" : "İzleme Listesine Ekle"
-            }
             className={`p-2 rounded-xl backdrop-blur-md border transition-all ${
               isWatchlist
                 ? "bg-accent border-accent text-accent-foreground font-bold shadow-md"

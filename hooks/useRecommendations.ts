@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { MediaItem, LogMetadata } from "@/lib/types";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 interface ScoredLogItem {
   id: number;
@@ -53,7 +54,7 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
           isColdStartRef.current = true;
           currentPageRef.current = 1;
 
-          const res = await fetch(
+          const res = await fetchWithAuth(
             "/api/tmdb?endpoint=/trending/all/week&page=1",
           );
           if (!res.ok) throw new Error("Trend verileri alınamadı.");
@@ -134,7 +135,9 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
 
         targetLogs.forEach((item) => {
           fetchPromises.push(
-            fetch(`/api/tmdb?endpoint=/${item.type}/${item.id}/recommendations`)
+            fetchWithAuth(
+              `/api/tmdb?endpoint=/${item.type}/${item.id}/recommendations`,
+            )
               .then((r) => (r.ok ? r.json() : { results: [] }))
               .then((d) => ({
                 results: d.results || [],
@@ -155,7 +158,7 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
 
         [1, 2].forEach((page) => {
           fetchPromises.push(
-            fetch(
+            fetchWithAuth(
               `/api/tmdb?endpoint=/discover/movie&with_genres=${topGenresStr}&sort_by=vote_average.desc&vote_count.gte=200&page=${page}`,
             )
               .then((r) => (r.ok ? r.json() : { results: [] }))
@@ -172,7 +175,7 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
           );
 
           fetchPromises.push(
-            fetch(
+            fetchWithAuth(
               `/api/tmdb?endpoint=/discover/tv&with_genres=${topGenresStr}&sort_by=vote_average.desc&vote_count.gte=200&page=${page}`,
             )
               .then((r) => (r.ok ? r.json() : { results: [] }))
@@ -190,7 +193,7 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
         });
 
         fetchPromises.push(
-          fetch(`/api/tmdb?endpoint=/trending/all/week`)
+          fetchWithAuth(`/api/tmdb?endpoint=/trending/all/week`)
             .then((r) => (r.ok ? r.json() : { results: [] }))
             .then((d) => ({
               results: d.results || [],
@@ -298,7 +301,7 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
       const freshItems: MediaItem[] = [];
 
       if (isColdStartRef.current) {
-        const res = await fetch(
+        const res = await fetchWithAuth(
           `/api/tmdb?endpoint=/trending/all/week&page=${nextPage}`,
         );
         if (res.ok) {
@@ -320,10 +323,10 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
         const topGenresStr = topGenresStrRef.current;
 
         const [movieRes, tvRes] = await Promise.all([
-          fetch(
+          fetchWithAuth(
             `/api/tmdb?endpoint=/discover/movie&with_genres=${topGenresStr}&sort_by=vote_average.desc&vote_count.gte=200&page=${nextPage}`,
           ).then((r) => (r.ok ? r.json() : { results: [] })),
-          fetch(
+          fetchWithAuth(
             `/api/tmdb?endpoint=/discover/tv&with_genres=${topGenresStr}&sort_by=vote_average.desc&vote_count.gte=200&page=${nextPage}`,
           ).then((r) => (r.ok ? r.json() : { results: [] })),
         ]);
