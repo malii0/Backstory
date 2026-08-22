@@ -56,10 +56,10 @@ export default function StatsDashboard({
       .slice(0, 15);
 
     const totalMovies = completedLogs.filter(
-      (l) => l.itemData?.media_type === "movie",
+      (l) => l.itemData?.media_type === "movie"
     ).length;
     const totalTVs = completedLogs.filter(
-      (l) => l.itemData?.media_type === "tv",
+      (l) => l.itemData?.media_type === "tv"
     ).length;
 
     const ratedLogs = completedLogs.filter((l) => l.rating > 0);
@@ -113,7 +113,7 @@ export default function StatsDashboard({
     const totalHours = Math.floor(totalRuntimeMinutes / 60);
     const daysSpent = (totalRuntimeMinutes / (60 * 24)).toFixed(1);
     const remainingHoursInDay = Math.floor(
-      (totalRuntimeMinutes % (60 * 24)) / 60,
+      (totalRuntimeMinutes % (60 * 24)) / 60
     );
 
     let wittyTimeComparison = "Henüz yolun başındasın, ekran süren temiz!";
@@ -130,10 +130,18 @@ export default function StatsDashboard({
         wittyTimeComparison = `Efsanevi seviye! Hayatının tam ${daysSpent} gününü ekrana kilitlenerek geçirdin.`;
     }
 
-    const genreCounts: Record<number, number> = {};
+    const genreCounts: Record<string, number> = {};
     completedLogs.forEach((l) => {
-      l.itemData?.genre_ids?.forEach((genreId) => {
-        genreCounts[genreId] = (genreCounts[genreId] || 0) + 1;
+      l.itemData?.genre_ids?.forEach((tmdbId) => {
+        const matchedCategory = GENRES_LIST.find(
+          (g) => g.movieIds.includes(tmdbId) || g.tvIds.includes(tmdbId)
+        );
+        if (matchedCategory) {
+          genreCounts[matchedCategory.name] =
+            (genreCounts[matchedCategory.name] || 0) + 1;
+        } else {
+          genreCounts["Diğer"] = (genreCounts["Diğer"] || 0) + 1;
+        }
       });
     });
 
@@ -141,8 +149,8 @@ export default function StatsDashboard({
       Object.values(genreCounts).reduce((a, b) => a + b, 0) || 1;
 
     const topGenres = Object.entries(genreCounts)
-      .map(([id, count]) => ({
-        name: GENRES_LIST.find((g) => g.id === Number(id))?.name || "Diğer",
+      .map(([name, count]) => ({
+        name,
         count,
         percentage: Math.round((count / totalGenreHits) * 100),
       }))

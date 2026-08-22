@@ -14,6 +14,7 @@ export interface MediaItem {
   popularity?: number;
   recommendationSource?: "similar" | "genre" | "wildcard";
   matchScore?: number;
+  cached_providers?: number[];
 }
 
 export interface Collection {
@@ -28,6 +29,7 @@ export interface WatchProviderInfo {
   provider_id: number;
   provider_name: string;
   logo_path: string;
+  display_priority?: number;
 }
 
 export interface WatchProvidersRegion {
@@ -94,6 +96,7 @@ export interface LogMetadata {
   itemData?: MediaItem;
   runtime?: number;
   updatedAt?: number;
+  providers?: number[];
 }
 
 export interface UserProfile {

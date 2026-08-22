@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
@@ -15,34 +14,41 @@ const ALLOWED_PATTERNS = [
   /^\/movie\/(now_playing|upcoming)$/,
   /^\/person\/\d+\/combined_credits$/,
   /^\/watch\/providers\/(movie|tv)$/,
+  /^\/(movie|tv)\/\d+\/watch\/providers$/,
 ];
 
+const rateLimitMap = new Map<string, { count: number; lastReset: number }>();
+
 export async function GET(request: NextRequest) {
-  // --- AUTH KONTROLÜ BAŞLANGIÇ ---
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return NextResponse.json({ error: "Yetkisiz erişim." }, { status: 401 });
-  }
-  const token = authHeader.split(" ")[1];
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser(token);
-
-  if (authError || !user) {
-    return NextResponse.json(
-      { error: "Geçersiz veya süresi dolmuş oturum." },
-      { status: 401 },
-    );
-  }
-  // --- AUTH KONTROLÜ BİTİŞ ---
-
   if (!TMDB_API_KEY) {
     return NextResponse.json(
       { error: "Server configuration error: TMDB API Key is missing." },
       { status: 500 },
     );
   }
+
+  // Memory Leak koruması: Map limiti aşılırsa temizle
+  if (rateLimitMap.size > 2000) {
+    rateLimitMap.clear();
+  }
+
+  const ip =
+    request.headers.get("x-forwarded-for") ||
+    request.headers.get("x-real-ip") ||
+    "unknown";
+  const now = Date.now();
+  const limitInfo = rateLimitMap.get(ip) || { count: 0, lastReset: now };
+
+  if (now - limitInfo.lastReset > 60000) {
+    limitInfo.count = 1;
+    limitInfo.lastReset = now;
+  } else {
+    limitInfo.count++;
+    if (limitInfo.count > 120) {
+      return NextResponse.json({ error: "Too Many Requests" }, { status: 429 });
+    }
+  }
+  rateLimitMap.set(ip, limitInfo);
 
   const { searchParams } = new URL(request.url);
   const endpoint = searchParams.get("endpoint");
@@ -88,7 +94,7 @@ export async function GET(request: NextRequest) {
     const data = await res.json();
     return NextResponse.json(data, {
       headers: {
-        "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+        "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=43200",
       },
     });
   } catch {

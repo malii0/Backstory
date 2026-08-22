@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export type ThemeMode = "dark" | "light" | "system";
 
@@ -146,6 +146,17 @@ function getInitialAccent(): string {
 export function useTheme() {
   const [mode, setMode] = useState<ThemeMode>(() => getInitialMode());
   const [accent, setAccent] = useState<string>(() => getInitialAccent());
+
+  useEffect(() => {
+    applyTheme(mode, accent);
+
+    if (mode === "system") {
+      const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+      const handleChange = () => applyTheme("system", accent);
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    }
+  }, [mode, accent]);
 
   const updateMode = (newMode: ThemeMode) => {
     setMode(newMode);

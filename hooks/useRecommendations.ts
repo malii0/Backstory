@@ -25,7 +25,15 @@ export function useRecommendations(logs: Record<string, LogMetadata>) {
   const isColdStartRef = useRef<boolean>(false);
 
   const fetchRecommendations = useCallback(
-    async (_overrideLogs?: Record<string, LogMetadata>) => {
+    async (
+      _overrideLogs?: Record<string, LogMetadata>,
+      forceRefresh = false,
+    ) => {
+      // Önbellek kontrolü eklendi: Zorla yenileme istenmediyse ve havuz doluysa API'ye gitme
+      if (!forceRefresh && fullPoolRef.current.length > 0) {
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
       poolIndexRef.current = 0;

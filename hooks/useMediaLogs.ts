@@ -5,23 +5,54 @@ import {
   fetchLogsFromSupabase,
   saveLogToSupabase,
   deleteLogFromSupabase,
+  saveBulkLogsToSupabase,
+  deleteBulkLogsFromSupabase,
   parseUpdatedAt,
 } from "@/lib/db";
 import { Database } from "@/lib/database.types";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 export function useMediaLogs(
   isAuthenticated: boolean,
   showToast: (msg: string) => void,
 ) {
-  const [logs, setLogs] = useState<Record<string, LogMetadata>>({});
-  const [isLogsLoading, setIsLogsLoading] = useState(true);
+  const [logs, setLogs] = useState<Record<string, LogMetadata>>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("backstory_offline_logs");
+        if (cached) return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return {};
+  });
+
+  const [isLogsLoading, setIsLogsLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const hasLocalData = !!localStorage.getItem("backstory_offline_logs");
+      if (hasLocalData) setIsLogsLoading(false);
+    }
+  }, []);
+
+  const logsRef = useRef<Record<string, LogMetadata>>(logs);
   const previousLogsRef = useRef<Record<string, LogMetadata> | null>(null);
+
+  useEffect(() => {
+    logsRef.current = logs;
+    if (typeof window !== "undefined") {
+      localStorage.setItem("backstory_offline_logs", JSON.stringify(logs));
+    }
+  }, [logs]);
 
   const [prevAuth, setPrevAuth] = useState(isAuthenticated);
   if (isAuthenticated !== prevAuth) {
     setPrevAuth(isAuthenticated);
     if (!isAuthenticated) {
       setLogs({});
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("backstory_offline_logs");
+      }
       setIsLogsLoading(false);
     }
   }
@@ -34,11 +65,12 @@ export function useMediaLogs(
     const currentRequestId = ++fetchRequestIdRef.current;
 
     const loadCloudLogs = async () => {
-      setIsLogsLoading(true);
-      const { data } = await fetchLogsFromSupabase();
+      const { data, error } = await fetchLogsFromSupabase();
 
       if (currentRequestId === fetchRequestIdRef.current) {
-        setLogs(data);
+        if (!error && data) {
+          setLogs(data);
+        }
         setIsLogsLoading(false);
       }
     };
@@ -84,6 +116,8 @@ export function useMediaLogs(
                 itemData: row.item_data as unknown as MediaItem,
                 runtime: row.runtime ?? 0,
                 updatedAt: incomingUpdatedAt,
+                providers: (row.item_data as Record<string, unknown>)
+                  ?.cached_providers as number[] | undefined,
               };
 
               setLogs((prev) => {
@@ -132,9 +166,10 @@ export function useMediaLogs(
       updates: Partial<LogMetadata>,
       selectedItem?: MediaItem | null,
       detailData?: MediaDetail | null,
+      options?: { silent?: boolean },
     ) => {
       const key = getItemKey(item);
-      const currentLog = logs[key] || {
+      const currentLog = logsRef.current[key] || {
         isCompleted: false,
         isWatchlist: false,
         rating: 0,
@@ -169,6 +204,19 @@ export function useMediaLogs(
           epCount > 0 ? epCount * epTime : currentLog.runtime || 0;
       }
 
+      let cachedProviders = currentLog.providers;
+
+      if (detailData?.["watch/providers"]?.results?.TR?.flatrate) {
+        cachedProviders = detailData["watch/providers"].results.TR.flatrate.map(
+          (p) => p.provider_id,
+        );
+      } else if (
+        detailData &&
+        !detailData["watch/providers"]?.results?.TR?.flatrate
+      ) {
+        cachedProviders = [];
+      }
+
       const cleanItem: MediaItem = { ...item };
       delete cleanItem.recommendationSource;
       delete cleanItem.matchScore;
@@ -177,11 +225,12 @@ export function useMediaLogs(
         ...currentLog,
         ...updates,
         itemData: cleanItem,
-        updatedAt: Date.now(),
+        updatedAt: options?.silent ? currentLog.updatedAt : Date.now(),
         runtime: calculatedRuntime,
+        providers: cachedProviders,
       };
 
-      const previousLogsState = { ...logs };
+      const previousLogsState = { ...logsRef.current };
       previousLogsRef.current = previousLogsState;
 
       if (
@@ -189,9 +238,11 @@ export function useMediaLogs(
         !updatedLog.isWatchlist &&
         updatedLog.rating === 0
       ) {
-        const newLogs = { ...logs };
-        delete newLogs[key];
-        setLogs(newLogs);
+        setLogs((prev) => {
+          const newLogs = { ...prev };
+          delete newLogs[key];
+          return newLogs;
+        });
 
         const success = await deleteLogFromSupabase(key);
         if (!success) {
@@ -214,10 +265,95 @@ export function useMediaLogs(
           showToast(
             "Bulut senkronizasyonu başarısız oldu. Değişiklik geri alındı.",
           );
+        } else if (cachedProviders === undefined) {
+          fetchWithAuth(
+            `/api/tmdb?endpoint=/${type}/${item.id}/watch/providers`,
+          )
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+              if (data) {
+                const trProviders = data.results?.TR?.flatrate;
+                const fetchedProviders = trProviders
+                  ? trProviders.map((p: any) => p.provider_id)
+                  : [];
+
+                setLogs((prev) => {
+                  const curr = prev[key];
+                  if (!curr) return prev;
+                  const silentlyUpdatedLog = {
+                    ...curr,
+                    providers: fetchedProviders,
+                  };
+                  saveLogToSupabase(key, silentlyUpdatedLog);
+                  return { ...prev, [key]: silentlyUpdatedLog };
+                });
+              }
+            })
+            .catch(() => {});
         }
       }
     },
-    [logs, getItemKey, showToast],
+    [getItemKey, showToast],
+  );
+
+  const bulkUpdateRating = useCallback(
+    async (items: MediaItem[], rating: number) => {
+      const previousState = { ...logsRef.current };
+      previousLogsRef.current = previousState;
+
+      const updatedLogs = { ...logsRef.current };
+      const keysToDelete: string[] = [];
+      const updatesToSave: { key: string; log: LogMetadata }[] = [];
+
+      for (const item of items) {
+        const key = getItemKey(item);
+        const currentLog = updatedLogs[key] || {
+          isCompleted: false,
+          isWatchlist: false,
+          rating: 0,
+          watchCount: 0,
+        };
+
+        const cleanItem = { ...item };
+        delete cleanItem.recommendationSource;
+        delete cleanItem.matchScore;
+
+        const updatedLog = {
+          ...currentLog,
+          rating,
+          isCompleted: rating > 0 ? true : currentLog.isCompleted,
+          isWatchlist: rating > 0 ? false : currentLog.isWatchlist,
+          watchCount:
+            rating > 0 && !currentLog.watchCount ? 1 : currentLog.watchCount,
+          itemData: cleanItem,
+          updatedAt: Date.now(),
+          providers: currentLog.providers || [],
+        };
+
+        if (
+          !updatedLog.isCompleted &&
+          !updatedLog.isWatchlist &&
+          updatedLog.rating === 0
+        ) {
+          delete updatedLogs[key];
+          keysToDelete.push(key);
+        } else {
+          updatedLogs[key] = updatedLog;
+          updatesToSave.push({ key, log: updatedLog });
+        }
+      }
+
+      setLogs(updatedLogs);
+      showToast(`${items.length} içerik toplu olarak güncellendi.`);
+
+      if (keysToDelete.length > 0) {
+        await deleteBulkLogsFromSupabase(keysToDelete);
+      }
+      if (updatesToSave.length > 0) {
+        await saveBulkLogsToSupabase(updatesToSave);
+      }
+    },
+    [getItemKey, showToast],
   );
 
   const toggleCompleted = useCallback(
@@ -227,7 +363,7 @@ export function useMediaLogs(
       detailData?: MediaDetail | null,
     ) => {
       const key = getItemKey(item);
-      const currentLog = logs[key];
+      const currentLog = logsRef.current[key];
       const isComp = currentLog?.isCompleted;
       const title = item.title || item.name;
 
@@ -248,7 +384,7 @@ export function useMediaLogs(
           : `"${title}" izlenenlerden çıkarıldı.`,
       );
     },
-    [logs, getItemKey, updateLog, showToast],
+    [getItemKey, updateLog, showToast],
   );
 
   const toggleWatchlist = useCallback(
@@ -258,7 +394,7 @@ export function useMediaLogs(
       detailData?: MediaDetail | null,
     ) => {
       const key = getItemKey(item);
-      const currentLog = logs[key];
+      const currentLog = logsRef.current[key];
       const title = item.title || item.name;
 
       updateLog(
@@ -276,7 +412,7 @@ export function useMediaLogs(
           : `"${title}" listeden çıkarıldı.`,
       );
     },
-    [logs, getItemKey, updateLog, showToast],
+    [getItemKey, updateLog, showToast],
   );
 
   const setRating = useCallback(
@@ -287,7 +423,7 @@ export function useMediaLogs(
       detailData?: MediaDetail | null,
     ) => {
       const key = getItemKey(item);
-      const currentLog = logs[key];
+      const currentLog = logsRef.current[key];
       const title = item.title || item.name;
 
       updateLog(
@@ -309,7 +445,7 @@ export function useMediaLogs(
         showToast(`"${title}" içeriğine ${rawRating} puan verildi.`);
       }
     },
-    [logs, getItemKey, updateLog, showToast],
+    [getItemKey, updateLog, showToast],
   );
 
   const updateWatchCount = useCallback(
@@ -342,6 +478,7 @@ export function useMediaLogs(
     previousLogsRef,
     getItemKey,
     updateLog,
+    bulkUpdateRating,
     toggleCompleted,
     toggleWatchlist,
     setRating,

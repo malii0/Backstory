@@ -5,7 +5,16 @@ import { UserProfile } from "@/lib/types";
 import { updateUserProfile } from "@/lib/db";
 import { useTheme } from "@/hooks/useTheme";
 import { supabase } from "@/lib/supabase";
-import { X, Check, Sun, Moon, Palette, KeyRound, Mail } from "lucide-react";
+import {
+  X,
+  Check,
+  Sun,
+  Moon,
+  Palette,
+  KeyRound,
+  Mail,
+  Monitor,
+} from "lucide-react";
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -87,7 +96,7 @@ export default function ProfileModal({
       }
 
       const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+        redirectTo: `${window.location.origin}`,
       });
 
       if (error) throw error;
@@ -156,6 +165,17 @@ export default function ProfileModal({
                 }`}
               >
                 <Sun className="w-3 h-3" /> Aydınlık
+              </button>
+              <button
+                type="button"
+                onClick={() => updateMode("system")}
+                className={`p-1.5 rounded-lg text-xs transition-all flex items-center gap-1 cursor-pointer ${
+                  mode === "system"
+                    ? "bg-muted text-accent font-bold"
+                    : "text-muted-foreground"
+                }`}
+              >
+                <Monitor className="w-3 h-3" /> Sistem
               </button>
             </div>
           </div>

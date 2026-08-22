@@ -24,6 +24,9 @@ const mapRowToLog = (row: MediaLogRow): LogMetadata => ({
   itemData: row.item_data as unknown as MediaItem,
   runtime: row.runtime ?? 0,
   updatedAt: parseUpdatedAt(row.updated_at),
+  providers: (row.item_data as Record<string, unknown>)?.cached_providers as
+    | number[]
+    | undefined,
 });
 
 export const fetchLogsFromSupabase = async (): Promise<{
@@ -46,7 +49,6 @@ export const fetchLogsFromSupabase = async (): Promise<{
       .eq("user_id", user.id);
 
     if (error) {
-      console.error("Supabase veri çekme hatası:", error);
       return {
         data: {},
         error: "Verileriniz buluttan çekilirken bir sorun oluştu.",
@@ -61,7 +63,6 @@ export const fetchLogsFromSupabase = async (): Promise<{
 
     return { data: logsRecord, error: null };
   } catch (err: unknown) {
-    console.error("Beklenmeyen hata:", err);
     return { data: {}, error: "Sunucuyla bağlantı kurulamadı." };
   }
 };
@@ -76,9 +77,13 @@ export const saveLogToSupabase = async (
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    console.error("Kullanıcı oturumu bulunamadı:", userError);
     return false;
   }
+
+  const itemDataWithProviders = {
+    ...(log.itemData || {}),
+    cached_providers: log.providers,
+  };
 
   const row: Database["public"]["Tables"]["media_logs"]["Insert"] = {
     user_id: user.id,
@@ -88,7 +93,7 @@ export const saveLogToSupabase = async (
     rating: log.rating ?? 0,
     watch_count: log.watchCount ?? 0,
     item_data:
-      log.itemData as unknown as Database["public"]["Tables"]["media_logs"]["Insert"]["item_data"],
+      itemDataWithProviders as unknown as Database["public"]["Tables"]["media_logs"]["Insert"]["item_data"],
     runtime: log.runtime ?? 0,
     updated_at: log.updatedAt ?? Date.now(),
   };
@@ -98,7 +103,50 @@ export const saveLogToSupabase = async (
     .upsert(row as never, { onConflict: "user_id, key" });
 
   if (error) {
-    console.error("Supabase kaydetme hatası:", error);
+    return false;
+  }
+  return true;
+};
+
+export const saveBulkLogsToSupabase = async (
+  updates: { key: string; log: LogMetadata }[],
+): Promise<boolean> => {
+  if (updates.length === 0) return true;
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return false;
+  }
+
+  const rows = updates.map(({ key, log }) => {
+    const itemDataWithProviders = {
+      ...(log.itemData || {}),
+      cached_providers: log.providers,
+    };
+
+    return {
+      user_id: user.id,
+      key,
+      is_completed: log.isCompleted ?? false,
+      is_watchlist: log.isWatchlist ?? false,
+      rating: log.rating ?? 0,
+      watch_count: log.watchCount ?? 0,
+      item_data:
+        itemDataWithProviders as unknown as Database["public"]["Tables"]["media_logs"]["Insert"]["item_data"],
+      runtime: log.runtime ?? 0,
+      updated_at: log.updatedAt ?? Date.now(),
+    };
+  });
+
+  const { error } = await supabase
+    .from("media_logs")
+    .upsert(rows as never[], { onConflict: "user_id, key" });
+
+  if (error) {
     return false;
   }
   return true;
@@ -110,7 +158,6 @@ export const deleteLogFromSupabase = async (key: string): Promise<boolean> => {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    console.error("Silme işlemi için oturum bulunamadı.");
     return false;
   }
 
@@ -121,7 +168,31 @@ export const deleteLogFromSupabase = async (key: string): Promise<boolean> => {
     .eq("user_id", user.id);
 
   if (error) {
-    console.error("Supabase silme hatası:", error);
+    return false;
+  }
+  return true;
+};
+
+export const deleteBulkLogsFromSupabase = async (
+  keys: string[],
+): Promise<boolean> => {
+  if (keys.length === 0) return true;
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return false;
+  }
+
+  const { error } = await supabase
+    .from("media_logs")
+    .delete()
+    .eq("user_id", user.id)
+    .in("key", keys);
+
+  if (error) {
     return false;
   }
   return true;
@@ -178,11 +249,6 @@ export const updateUserProfile = async (
     .upsert(profileRow as never, { onConflict: "id" });
 
   if (error) {
-    console.error(
-      "Supabase profil kaydetme hatası:",
-      error.message,
-      error.details,
-    );
     return { success: false, error: error.message };
   }
 

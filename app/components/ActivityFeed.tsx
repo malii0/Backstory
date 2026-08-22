@@ -17,8 +17,8 @@ import { getRelativeTime } from "@/lib/utils";
 interface ActivityFeedProps {
   feedItems: ActivityFeedItem[];
   isLoading: boolean;
-  userWatchedIds?: Set<number> | number[];
-  userWatchlistIds?: Set<number> | number[];
+  userWatchedIds?: Set<string>;
+  userWatchlistIds?: Set<string>;
   onSelectItem: (item: MediaItem) => void;
   onQuickAddToWatchlist?: (item: MediaItem) => void;
   onQuickToggleCompleted?: (item: MediaItem) => void;
@@ -46,7 +46,7 @@ export default function ActivityFeed({
         {[1, 2, 3].map((i) => (
           <div
             key={i}
-            className="h-24 bg-zinc-900/50 rounded-2xl animate-pulse border border-zinc-800/50"
+            className="h-24 bg-card rounded-2xl animate-pulse border border-border"
           />
         ))}
       </div>
@@ -55,7 +55,7 @@ export default function ActivityFeed({
 
   if (feedItems.length === 0) {
     return (
-      <div className="text-center py-16 text-zinc-500 text-sm">
+      <div className="text-center py-16 text-muted-foreground text-sm">
         Henüz gruptaki arkadaşların hiçbir film veya dizi kaydetmemiş.
       </div>
     );
@@ -74,17 +74,19 @@ export default function ActivityFeed({
           ? getRelativeTime(new Date(item.updatedAt).getTime())
           : "";
 
-        const mediaId = item.itemData?.id;
-        const isUserWatched = mediaId ? watchedSet.has(mediaId) : false;
-        const isUserInWatchlist = mediaId ? watchlistSet.has(mediaId) : false;
+        const mediaKey = item.itemData
+          ? `${item.itemData.media_type || "movie"}_${item.itemData.id}`
+          : "";
+        const isUserWatched = mediaKey ? watchedSet.has(mediaKey) : false;
+        const isUserInWatchlist = mediaKey ? watchlistSet.has(mediaKey) : false;
 
         return (
           <div
             key={item.id}
             onClick={() => item.itemData && onSelectItem(item.itemData)}
-            className="bg-zinc-900/80 hover:bg-zinc-800/80 border border-zinc-800 rounded-2xl p-3.5 flex items-center gap-4 cursor-pointer transition-all shadow-md group relative"
+            className="bg-card/80 hover:bg-card border border-border rounded-2xl p-3.5 flex items-center gap-4 cursor-pointer transition-all shadow-md group relative"
           >
-            <div className="w-12 h-16 bg-zinc-950 rounded-xl overflow-hidden flex-shrink-0 border border-zinc-800 relative">
+            <div className="w-12 h-16 bg-background rounded-xl overflow-hidden flex-shrink-0 border border-border relative">
               {poster ? (
                 <Image
                   src={poster}
@@ -94,7 +96,7 @@ export default function ActivityFeed({
                   className="object-cover group-hover:scale-105 transition-transform"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-zinc-700 text-xs">
+                <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
                   Afiş Yok
                 </div>
               )}
@@ -105,15 +107,15 @@ export default function ActivityFeed({
                 <span className="text-base">
                   {item.userProfile?.avatarUrl || "🎬"}
                 </span>
-                <span className="text-xs font-bold text-amber-400 truncate">
+                <span className="text-xs font-bold text-accent truncate">
                   {item.userProfile?.displayName || "Arkadaş"}
                 </span>
-                <span className="text-[10px] text-zinc-500 ml-auto flex items-center gap-1">
+                <span className="text-[10px] text-muted-foreground ml-auto flex items-center gap-1">
                   <Clock className="w-3 h-3" /> {timeAgo}
                 </span>
               </div>
 
-              <h4 className="text-sm font-semibold text-zinc-100 truncate group-hover:text-amber-400 transition-colors">
+              <h4 className="text-sm font-semibold text-foreground truncate group-hover:text-accent transition-colors">
                 {title}
               </h4>
 
@@ -124,13 +126,13 @@ export default function ActivityFeed({
                   </span>
                 )}
                 {item.isWatchlist && (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-accent bg-accent/10 px-2 py-0.5 rounded-md border border-accent/20">
                     <Bookmark className="w-3 h-3" /> İzlenecek
                   </span>
                 )}
                 {item.rating > 0 && (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-400 bg-zinc-800 px-2 py-0.5 rounded-md border border-zinc-700">
-                    <Star className="w-3 h-3 fill-amber-400 text-amber-400" />{" "}
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-accent bg-background px-2 py-0.5 rounded-md border border-border">
+                    <Star className="w-3 h-3 fill-accent text-accent" />{" "}
                     {item.rating}/10
                   </span>
                 )}
@@ -171,8 +173,8 @@ export default function ActivityFeed({
                     }
                     className={`p-2 rounded-xl border transition-colors ${
                       isUserInWatchlist
-                        ? "bg-amber-500 text-zinc-950 border-amber-400 hover:bg-amber-600"
-                        : "bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/30"
+                        ? "bg-accent text-accent-foreground border-accent hover:bg-accent/90"
+                        : "bg-accent/10 hover:bg-accent/20 text-accent border-accent/30"
                     }`}
                   >
                     {isUserInWatchlist ? (

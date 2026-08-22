@@ -50,7 +50,13 @@ const themeInitScript = `
   try {
     var mode = localStorage.getItem('backstory-theme-mode') || 'dark';
     var accent = localStorage.getItem('backstory-accent-color') || '#f59e0b';
-    document.documentElement.setAttribute('data-theme', mode);
+    
+    var resolvedMode = mode;
+    if (mode === 'system') {
+      resolvedMode = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    
+    document.documentElement.setAttribute('data-theme', resolvedMode);
     document.documentElement.style.setProperty('--app-accent', accent);
 
     function getContrast(hex) {

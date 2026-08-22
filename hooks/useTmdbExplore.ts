@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { MediaItem, ActiveTab } from "@/lib/types";
+import { MediaItem, ActiveTab, WatchProviderInfo } from "@/lib/types"; // Tip güncellendi
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { GENRES_LIST } from "@/lib/constants";
 
 export type YearRange = { start: number; end: number };
 export type ExploreMode =
@@ -8,14 +9,9 @@ export type ExploreMode =
   | "now_playing"
   | "upcoming"
   | "personalized";
-export type WatchProvider = {
-  provider_id: number;
-  provider_name: string;
-  logo_path: string;
-};
 
 export const DEFAULT_YEAR_RANGE: YearRange = {
-  start: 1950,
+  start: 1900,
   end: new Date().getFullYear(),
 };
 
@@ -41,7 +37,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const [nowPlayingIds, setNowPlayingIds] = useState<Set<number>>(new Set());
-  const [providers, setProviders] = useState<WatchProvider[]>([]);
+  const [providers, setProviders] = useState<WatchProviderInfo[]>([]); // Tip değişti
   const [selectedProviderId, setSelectedProviderId] = useState<number | null>(
     null,
   );
@@ -51,7 +47,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
   const [selectedMediaType, setSelectedMediaType] = useState<
     "all" | "movie" | "tv"
   >("all");
-  const [selectedGenreId, setSelectedGenreId] = useState<number | null>(null);
+  const [selectedGenreId, setSelectedGenreId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<
     | "popularity.desc"
     | "vote_average.desc"
@@ -94,15 +90,17 @@ export function useTmdbExplore(activeTab: ActiveTab) {
     }
   }
 
-  // Arama metni debounce
   useEffect(() => {
+    if (query === "") {
+      setDebouncedQuery("");
+      return;
+    }
     const timer = setTimeout(() => {
       setDebouncedQuery(query);
     }, 350);
     return () => clearTimeout(timer);
   }, [query]);
 
-  // Yıl aralığı debounce (Sürükleme anında aşırı istek gitmesini önler)
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedYearRange(yearRange);
@@ -110,7 +108,6 @@ export function useTmdbExplore(activeTab: ActiveTab) {
     return () => clearTimeout(timer);
   }, [yearRange]);
 
-  // Puan slider'ı debounce
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedMinRating(minRating);
@@ -121,13 +118,38 @@ export function useTmdbExplore(activeTab: ActiveTab) {
   useEffect(() => {
     const fetchProviders = async () => {
       try {
-        const res = await fetchWithAuth(
-          "/api/tmdb?endpoint=/watch/providers/movie&watch_region=TR",
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setProviders((data.results || []).slice(0, 12));
+        const [movieRes, tvRes] = await Promise.all([
+          fetchWithAuth(
+            "/api/tmdb?endpoint=/watch/providers/movie&watch_region=TR",
+          ),
+          fetchWithAuth(
+            "/api/tmdb?endpoint=/watch/providers/tv&watch_region=TR",
+          ),
+        ]);
+
+        let allProviders: WatchProviderInfo[] = [];
+        if (movieRes.ok) {
+          const mData = await movieRes.json();
+          allProviders = [...allProviders, ...(mData.results || [])];
         }
+        if (tvRes.ok) {
+          const tData = await tvRes.json();
+          allProviders = [...allProviders, ...(tData.results || [])];
+        }
+
+        const uniqueMap = new Map<number, WatchProviderInfo>();
+        allProviders.forEach((p) => {
+          if (!uniqueMap.has(p.provider_id)) {
+            uniqueMap.set(p.provider_id, p);
+          }
+        });
+
+        // TMDB'nin önceliğine göre sıralama sağlandı (Türkiye platformlarını öne çıkarır)
+        const providersArr = Array.from(uniqueMap.values());
+        providersArr.sort(
+          (a, b) => (a.display_priority || 1000) - (b.display_priority || 1000),
+        );
+        setProviders(providersArr.slice(0, 24)); // Daha kapsayıcı platform limiti
       } catch (err) {
         console.error("Platform sağlayıcıları çekilemedi:", err);
       }
@@ -238,7 +260,6 @@ export function useTmdbExplore(activeTab: ActiveTab) {
         } else {
           const type = selectedMediaType === "tv" ? "tv" : "movie";
 
-          // "Tüm Zamanların En İyileri" seçilince film için 3000, dizi için 800 oy barajı
           let minVotes = 0;
           if (sortBy === "vote_average.desc") {
             minVotes = type === "tv" ? 800 : 3000;
@@ -256,8 +277,14 @@ export function useTmdbExplore(activeTab: ActiveTab) {
           proxyParams.append("sort_by", effectiveSortBy);
           proxyParams.append("vote_count.gte", minVotes.toString());
 
-          if (selectedGenreId)
-            proxyParams.append("with_genres", selectedGenreId.toString());
+          if (selectedGenreId) {
+            const genreObj = GENRES_LIST.find((g) => g.id === selectedGenreId);
+            if (genreObj) {
+              const ids = type === "tv" ? genreObj.tvIds : genreObj.movieIds;
+              proxyParams.append("with_genres", ids.join("|"));
+            }
+          }
+
           if (debouncedMinRating > 0)
             proxyParams.append(
               "vote_average.gte",

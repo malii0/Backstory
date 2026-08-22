@@ -2,7 +2,15 @@
 
 import React, { useState, useMemo } from "react";
 import Image from "next/image";
-import { X, Star, Search, Film, Trash2 } from "lucide-react";
+import {
+  X,
+  Star,
+  Search,
+  Film,
+  Trash2,
+  CheckSquare,
+  Square,
+} from "lucide-react";
 import { LogMetadata, MediaItem } from "@/lib/types";
 
 interface RatingManagerModalProps {
@@ -10,6 +18,7 @@ interface RatingManagerModalProps {
   logs: Record<string, LogMetadata>;
   onClose: () => void;
   onUpdateRating: (item: MediaItem, rating: number) => void;
+  onBulkUpdateRating: (items: MediaItem[], rating: number) => void;
   onSelectItem: (item: MediaItem) => void;
 }
 
@@ -21,6 +30,7 @@ export default function RatingManagerModal({
   logs,
   onClose,
   onUpdateRating,
+  onBulkUpdateRating,
   onSelectItem,
 }: RatingManagerModalProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -29,6 +39,8 @@ export default function RatingManagerModal({
   >("all");
   const [ratingFilter, setRatingFilter] = useState<RatingFilter>("all");
   const [sortBy, setSortBy] = useState<SortOption>("rating.desc");
+
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
 
   const [frozenKeys, setFrozenKeys] = useState<string[]>([]);
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
@@ -43,6 +55,7 @@ export default function RatingManagerModal({
     setPrevIsOpen(isOpen);
     if (!isOpen) {
       setFrozenKeys([]);
+      setSelectedKeys(new Set());
     } else {
       const sorted = validLogs.map(([key, log]) => ({
         key,
@@ -106,11 +119,13 @@ export default function RatingManagerModal({
   const handleRatingFilterChange = (newFilter: RatingFilter) => {
     setRatingFilter(newFilter);
     setFrozenKeys([]);
+    setSelectedKeys(new Set());
   };
 
   const handleMediaTypeChange = (type: "all" | "movie" | "tv") => {
     setSelectedMediaType(type);
     setFrozenKeys([]);
+    setSelectedKeys(new Set());
   };
 
   const filteredLogs = useMemo(() => {
@@ -149,6 +164,31 @@ export default function RatingManagerModal({
 
     return list;
   }, [validLogs, searchQuery, selectedMediaType, ratingFilter, frozenKeys]);
+
+  const toggleSelectAll = () => {
+    if (selectedKeys.size === filteredLogs.length) {
+      setSelectedKeys(new Set());
+    } else {
+      setSelectedKeys(new Set(filteredLogs.map((i) => i.key)));
+    }
+  };
+
+  const toggleSelectItem = (key: string) => {
+    const next = new Set(selectedKeys);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setSelectedKeys(next);
+  };
+
+  const handleBulkRating = (rating: number) => {
+    const itemsToUpdate = filteredLogs
+      .filter(({ key }) => selectedKeys.has(key))
+      .map((l) => l.item);
+    if (itemsToUpdate.length > 0) {
+      onBulkUpdateRating(itemsToUpdate, rating);
+    }
+    setSelectedKeys(new Set());
+  };
 
   const ratedCount = useMemo(
     () =>
@@ -304,6 +344,47 @@ export default function RatingManagerModal({
               </select>
             </div>
           </div>
+
+          <div className="flex items-center justify-between pt-2 border-t border-border/60">
+            <button
+              onClick={toggleSelectAll}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors font-semibold"
+            >
+              {selectedKeys.size > 0 &&
+              selectedKeys.size === filteredLogs.length ? (
+                <CheckSquare className="w-4 h-4 text-accent" />
+              ) : (
+                <Square className="w-4 h-4" />
+              )}
+              <span>Tümünü Seç ({filteredLogs.length})</span>
+            </button>
+
+            {selectedKeys.size > 0 && (
+              <div className="flex items-center gap-2 animate-in fade-in duration-150">
+                <span className="text-[11px] text-accent font-bold">
+                  {selectedKeys.size} seçildi:
+                </span>
+                <select
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    if (!isNaN(val)) handleBulkRating(val);
+                  }}
+                  defaultValue=""
+                  className="bg-background border border-accent/40 text-foreground text-xs rounded-lg px-2 py-1 focus:outline-none"
+                >
+                  <option value="" disabled>
+                    Puan Ata...
+                  </option>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((s) => (
+                    <option key={s} value={s}>
+                      {s} Puan Yap
+                    </option>
+                  ))}
+                  <option value={0}>Puanları Temizle</option>
+                </select>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="overflow-y-auto custom-scrollbar flex-1 p-4 space-y-2.5">
@@ -312,59 +393,75 @@ export default function RatingManagerModal({
               Kriterlere uyan içerik bulunamadı.
             </div>
           ) : (
-            filteredLogs.map(({ item, log }) => {
+            filteredLogs.map(({ key, item, log }) => {
               const title = item.title || item.name || "İsimsiz İçerik";
               const releaseYear = (
                 item.release_date ||
                 item.first_air_date ||
                 ""
               ).split("-")[0];
+              const isSelected = selectedKeys.has(key);
 
               return (
                 <div
-                  key={`${item.media_type}_${item.id}`}
+                  key={key}
                   className={`border rounded-2xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all group ${
-                    log.rating > 0
-                      ? "bg-card/70 border-border/80 hover:border-border"
-                      : "bg-background/40 border-border/40 hover:border-accent/30"
+                    isSelected
+                      ? "bg-accent/10 border-accent"
+                      : log.rating > 0
+                        ? "bg-card/70 border-border/80 hover:border-border"
+                        : "bg-background/40 border-border/40 hover:border-accent/30"
                   }`}
                 >
-                  <div
-                    onClick={() => {
-                      onSelectItem(item);
-                      onClose();
-                    }}
-                    className="flex items-center gap-3 min-w-0 cursor-pointer flex-1"
-                  >
-                    {item.poster_path ? (
-                      <div className="w-10 h-14 relative flex-shrink-0">
-                        <Image
-                          src={`https://image.tmdb.org/t/p/w92${item.poster_path}`}
-                          alt={title}
-                          fill
-                          sizes="40px"
-                          className="object-cover rounded-xl border border-border group-hover:scale-105 transition-transform"
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-10 h-14 bg-background rounded-xl border border-border flex items-center justify-center text-muted-foreground flex-shrink-0">
-                        <Film className="w-5 h-5" />
-                      </div>
-                    )}
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <button
+                      onClick={() => toggleSelectItem(key)}
+                      className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0"
+                    >
+                      {isSelected ? (
+                        <CheckSquare className="w-4 h-4 text-accent" />
+                      ) : (
+                        <Square className="w-4 h-4" />
+                      )}
+                    </button>
 
-                    <div className="min-w-0 space-y-0.5">
-                      <h4 className="text-xs font-bold text-foreground group-hover:text-accent transition-colors truncate">
-                        {title}
-                      </h4>
-                      <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
-                        <span className="uppercase font-bold text-accent/80">
-                          {item.media_type === "tv" ? "Dizi" : "Film"}
-                        </span>
-                        {releaseYear && <span>• {releaseYear}</span>}
-                        {log.isCompleted && (
-                          <span className="text-emerald-400">• İzlendi</span>
-                        )}
-                      </p>
+                    <div
+                      onClick={() => {
+                        onSelectItem(item);
+                        onClose();
+                      }}
+                      className="flex items-center gap-3 min-w-0 cursor-pointer flex-1"
+                    >
+                      {item.poster_path ? (
+                        <div className="w-10 h-14 relative flex-shrink-0">
+                          <Image
+                            src={`https://image.tmdb.org/t/p/w92${item.poster_path}`}
+                            alt={title}
+                            fill
+                            sizes="40px"
+                            className="object-cover rounded-xl border border-border group-hover:scale-105 transition-transform"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-10 h-14 bg-background rounded-xl border border-border flex items-center justify-center text-muted-foreground flex-shrink-0">
+                          <Film className="w-5 h-5" />
+                        </div>
+                      )}
+
+                      <div className="min-w-0 space-y-0.5">
+                        <h4 className="text-xs font-bold text-foreground group-hover:text-accent transition-colors truncate">
+                          {title}
+                        </h4>
+                        <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                          <span className="uppercase font-bold text-accent/80">
+                            {item.media_type === "tv" ? "Dizi" : "Film"}
+                          </span>
+                          {releaseYear && <span>• {releaseYear}</span>}
+                          {log.isCompleted && (
+                            <span className="text-emerald-400">• İzlendi</span>
+                          )}
+                        </p>
+                      </div>
                     </div>
                   </div>
 

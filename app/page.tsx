@@ -7,27 +7,20 @@ import React, {
   useRef,
   useMemo,
 } from "react";
-import Image from "next/image";
 import {
   Search,
   X,
   SlidersHorizontal,
   AlertCircle,
   RefreshCw,
-  BarChart3,
-  CheckCircle2,
-  RotateCcw,
   Dices,
   Sparkles,
-  LogOut,
-  LogIn,
   Clapperboard,
   Calendar,
-  Users,
-  Star,
   EyeOff,
-  ShieldCheck,
 } from "lucide-react";
+
+import Header from "./components/Header";
 import MediaCard from "./components/MediaCard";
 import DetailDrawer from "./components/DetailDrawer";
 import SkeletonGrid from "./components/SkeletonGrid";
@@ -36,6 +29,11 @@ import AuthModal from "./components/AuthModal";
 import ProfileModal from "./components/ProfileModal";
 import ActivityFeed from "./components/ActivityFeed";
 import RatingManagerModal from "./components/RatingManagerModal";
+import FilterPanel from "./components/FilterPanel";
+import PrivacyModal from "./components/PrivacyModal";
+import RandomPickModal from "./components/RandomPickModal";
+import ToastList, { ToastItemData } from "./components/ToastList";
+
 import { GENRES_LIST } from "@/lib/constants";
 import {
   MediaItem,
@@ -47,7 +45,8 @@ import {
 import { getEffectiveWatchCount } from "@/lib/utils";
 import {
   saveLogToSupabase,
-  deleteLogFromSupabase,
+  saveBulkLogsToSupabase,
+  deleteBulkLogsFromSupabase,
   fetchActivityFeed,
 } from "@/lib/db";
 import { useAuth } from "@/hooks/useAuth";
@@ -55,11 +54,6 @@ import { useMediaLogs } from "@/hooks/useMediaLogs";
 import { useTmdbExplore, DEFAULT_YEAR_RANGE } from "@/hooks/useTmdbExplore";
 import { useRecommendations } from "@/hooks/useRecommendations";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
-
-interface ToastItem {
-  id: string;
-  message: string;
-}
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("explore");
@@ -73,13 +67,9 @@ export default function Home() {
   const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
   const [randomPick, setRandomPick] = useState<MediaItem | null>(null);
 
-  const [itemProvidersMap, setItemProvidersMap] = useState<
-    Record<string, number[]>
-  >({});
   const [hideLoggedItems, setHideLoggedItems] = useState(false);
 
-  // Gelişmiş Toast Kuyruğu (Queue / Stack)
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [toasts, setToasts] = useState<ToastItemData[]>([]);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const modalSearchInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -90,8 +80,7 @@ export default function Home() {
   const showToast = useCallback(
     (msg: string) => {
       const id = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      setToasts((prev) => [...prev.slice(-2), { id, message: msg }]); // Ekranda en fazla son 3 toast tutulur
-
+      setToasts((prev) => [...prev.slice(-2), { id, message: msg }]);
       setTimeout(() => {
         dismissToast(id);
       }, 6000);
@@ -104,21 +93,97 @@ export default function Home() {
   const explore = useTmdbExplore(activeTab);
   const recommendations = useRecommendations(logsManager.logs);
 
+  const isHydratingRef = useRef(false);
+  const hydrationStateRef = useRef({
+    logs: logsManager.logs,
+    updateLog: logsManager.updateLog,
+  });
+
+  useEffect(() => {
+    hydrationStateRef.current = {
+      logs: logsManager.logs,
+      updateLog: logsManager.updateLog,
+    };
+  }, [logsManager.logs, logsManager.updateLog]);
+
+  useEffect(() => {
+    if (
+      !auth.isAuthenticated ||
+      logsManager.isLogsLoading ||
+      isHydratingRef.current
+    ) {
+      return;
+    }
+
+    const { logs: currentLogs } = hydrationStateRef.current;
+    const logsToHydrate = Object.values(currentLogs).filter(
+      (log) => log.providers === undefined && log.itemData,
+    );
+
+    if (logsToHydrate.length === 0) return;
+
+    isHydratingRef.current = true;
+    let isSubscribed = true;
+
+    const hydrateMissingProviders = async () => {
+      for (const log of logsToHydrate) {
+        if (!isSubscribed) break;
+
+        try {
+          const type = log.itemData!.media_type || "movie";
+          const id = log.itemData!.id;
+          const res = await fetchWithAuth(
+            `/api/tmdb?endpoint=/${type}/${id}/watch/providers`,
+          );
+
+          if (res.ok) {
+            const data = await res.json();
+            const trProviders = data.results?.TR?.flatrate;
+            const fetchedProviders = trProviders
+              ? trProviders.map((p: { provider_id: number }) => p.provider_id)
+              : [];
+
+            if (log.itemData) {
+              const { updateLog } = hydrationStateRef.current;
+              await updateLog(
+                log.itemData,
+                { providers: fetchedProviders },
+                null,
+                null,
+                { silent: true },
+              );
+            }
+          }
+        } catch (err) {}
+
+        await new Promise((r) => setTimeout(r, 750));
+      }
+      isHydratingRef.current = false;
+    };
+
+    hydrateMissingProviders();
+
+    return () => {
+      isSubscribed = false;
+      isHydratingRef.current = false;
+    };
+  }, [auth.isAuthenticated, logsManager.isLogsLoading]);
+
   const userWatchedIds = useMemo(() => {
-    const set = new Set<number>();
+    const set = new Set<string>();
     Object.values(logsManager.logs).forEach((log) => {
       if (log.isCompleted && log.itemData?.id) {
-        set.add(log.itemData.id);
+        set.add(`${log.itemData.media_type || "movie"}_${log.itemData.id}`);
       }
     });
     return set;
   }, [logsManager.logs]);
 
   const userWatchlistIds = useMemo(() => {
-    const set = new Set<number>();
+    const set = new Set<string>();
     Object.values(logsManager.logs).forEach((log) => {
       if (log.isWatchlist && log.itemData?.id) {
-        set.add(log.itemData.id);
+        set.add(`${log.itemData.media_type || "movie"}_${log.itemData.id}`);
       }
     });
     return set;
@@ -149,16 +214,51 @@ export default function Home() {
     setSelectedItem(item);
   }, []);
 
-  const handleToggleCompleted = useCallback(
+  const handleCardToggleCompleted = useCallback(
     (item: MediaItem) => {
-      logsManager.toggleCompleted(item, selectedItem, detailData);
+      logsManager.toggleCompleted(item, null, null);
+    },
+    [logsManager.toggleCompleted],
+  );
+
+  const handleCardToggleWatchlist = useCallback(
+    (item: MediaItem) => {
+      logsManager.toggleWatchlist(item, null, null);
+    },
+    [logsManager.toggleWatchlist],
+  );
+
+  const handleDrawerToggleCompleted = useCallback(() => {
+    if (selectedItem) {
+      logsManager.toggleCompleted(selectedItem, selectedItem, detailData);
+    }
+  }, [logsManager, selectedItem, detailData]);
+
+  const handleDrawerToggleWatchlist = useCallback(() => {
+    if (selectedItem) {
+      logsManager.toggleWatchlist(selectedItem, selectedItem, detailData);
+    }
+  }, [logsManager, selectedItem, detailData]);
+
+  const handleDrawerUpdateRating = useCallback(
+    (rating: number) => {
+      if (selectedItem) {
+        logsManager.setRating(selectedItem, rating, selectedItem, detailData);
+      }
     },
     [logsManager, selectedItem, detailData],
   );
 
-  const handleToggleWatchlist = useCallback(
-    (item: MediaItem) => {
-      logsManager.toggleWatchlist(item, selectedItem, detailData);
+  const handleDrawerUpdateWatchCount = useCallback(
+    (count: number) => {
+      if (selectedItem) {
+        logsManager.updateWatchCount(
+          selectedItem,
+          count,
+          selectedItem,
+          detailData,
+        );
+      }
     },
     [logsManager, selectedItem, detailData],
   );
@@ -167,80 +267,6 @@ export default function Home() {
     explore.setExploreMode("personalized");
     recommendations.fetchRecommendations();
   };
-
-  useEffect(() => {
-    if (activeTab === "explore" || !explore.selectedProviderId) return;
-
-    const targetLogs = Object.values(logsManager.logs).filter((log) => {
-      if (activeTab === "completed") return log.isCompleted;
-      if (activeTab === "watchlist") return log.isWatchlist;
-      return false;
-    });
-
-    const missingLogs = targetLogs.filter((log) => {
-      if (!log.itemData) return false;
-      const key = `${log.itemData.media_type || "movie"}_${log.itemData.id}`;
-      return !itemProvidersMap[key];
-    });
-
-    if (missingLogs.length === 0) return;
-
-    let isSubscribed = true;
-
-    const fetchBatch = async () => {
-      const batchSize = 5;
-      for (let i = 0; i < missingLogs.length; i += batchSize) {
-        if (!isSubscribed) break;
-        const currentBatch = missingLogs.slice(i, i + batchSize);
-
-        const results = await Promise.all(
-          currentBatch.map(async (log) => {
-            if (!log.itemData) return null;
-            try {
-              const type = log.itemData.media_type || "movie";
-              const res = await fetchWithAuth(
-                `/api/tmdb?endpoint=/${type}/${log.itemData.id}/watch/providers`,
-              );
-              if (res.ok) {
-                const data = await res.json();
-                const trProviders = data.results?.TR?.flatrate || [];
-                return {
-                  key: `${type}_${log.itemData.id}`,
-                  providers: trProviders.map(
-                    (p: { provider_id: number }) => p.provider_id,
-                  ),
-                };
-              }
-            } catch (err) {
-              console.error("İçerik platform verisi alınamadı:", err);
-            }
-            return null;
-          }),
-        );
-
-        if (isSubscribed) {
-          setItemProvidersMap((prev) => {
-            const nextMap = { ...prev };
-            results.forEach((r) => {
-              if (r) nextMap[r.key] = r.providers;
-            });
-            return nextMap;
-          });
-        }
-      }
-    };
-
-    fetchBatch();
-
-    return () => {
-      isSubscribed = false;
-    };
-  }, [
-    explore.selectedProviderId,
-    activeTab,
-    logsManager.logs,
-    itemProvidersMap,
-  ]);
 
   useEffect(() => {
     const handleScrollFab = () => {
@@ -268,7 +294,6 @@ export default function Home() {
           lastFeedFetchRef.current = Date.now();
         }
       } catch (err) {
-        console.error("Akış verisi yüklenemedi:", err);
       } finally {
         if (isMounted) {
           setIsFeedLoading(false);
@@ -334,13 +359,15 @@ export default function Home() {
     const currentLogs = logsManager.logs;
     logsManager.setLogs(restored);
     setToasts([]);
-    const prevRef = logsManager.previousLogsRef;
-    prevRef.current = null;
+    logsManager.previousLogsRef.current = null;
 
     const allKeys = new Set([
       ...Object.keys(restored),
       ...Object.keys(currentLogs),
     ]);
+
+    const keysToDelete: string[] = [];
+    const updatesToSave: { key: string; log: LogMetadata }[] = [];
 
     for (const key of allKeys) {
       const prevLog = restored[key];
@@ -348,11 +375,18 @@ export default function Home() {
 
       if (JSON.stringify(prevLog) !== JSON.stringify(currLog)) {
         if (prevLog) {
-          await saveLogToSupabase(key, prevLog);
+          updatesToSave.push({ key, log: prevLog });
         } else {
-          await deleteLogFromSupabase(key);
+          keysToDelete.push(key);
         }
       }
+    }
+
+    if (keysToDelete.length > 0) {
+      await deleteBulkLogsFromSupabase(keysToDelete);
+    }
+    if (updatesToSave.length > 0) {
+      await saveBulkLogsToSupabase(updatesToSave);
     }
   };
 
@@ -400,13 +434,12 @@ export default function Home() {
         include_image_language: "en,null",
       });
 
-      const res = await fetchWithAuth(`/api/tmdb?${proxyParams.toString()}`);
+      const res = await fetch(`/api/tmdb?${proxyParams.toString()}`);
       if (!res.ok) throw new Error("Detay verisi alınamadı.");
       const data = await res.json();
       setDetailData({ ...data, media_type: type });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Bir hata oluştu.";
-      setDetailError(msg);
+      setDetailError(err instanceof Error ? err.message : "Bir hata oluştu.");
     } finally {
       setIsDetailLoading(false);
     }
@@ -432,7 +465,6 @@ export default function Home() {
           return !log?.isCompleted && !log?.isWatchlist;
         });
       }
-
       return results;
     }
 
@@ -478,18 +510,22 @@ export default function Home() {
     }
 
     if (explore.selectedGenreId !== null) {
-      filtered = filtered.filter((entry) =>
-        entry.item.genre_ids?.includes(explore.selectedGenreId!),
+      const genreObj = GENRES_LIST.find(
+        (g) => g.id === explore.selectedGenreId,
       );
+      if (genreObj) {
+        filtered = filtered.filter((entry) => {
+          const targetIds =
+            entry.item.media_type === "tv" ? genreObj.tvIds : genreObj.movieIds;
+          return entry.item.genre_ids?.some((id) => targetIds.includes(id));
+        });
+      }
     }
 
     if (explore.selectedProviderId !== null) {
       filtered = filtered.filter((entry) => {
-        const key = `${entry.item.media_type || "movie"}_${entry.item.id}`;
-        const providers = itemProvidersMap[key];
-        return providers
-          ? providers.includes(explore.selectedProviderId!)
-          : false;
+        const providers = entry.log?.providers || [];
+        return providers.includes(explore.selectedProviderId!);
       });
     }
 
@@ -525,8 +561,8 @@ export default function Home() {
     explore.selectedProviderId,
     explore.sortBy,
     recommendations.recommendations,
-    logsManager,
-    itemProvidersMap,
+    logsManager.logs,
+    logsManager.getItemKey,
   ]);
 
   const handlePickRandomFromWatchlist = () => {
@@ -534,8 +570,6 @@ export default function Home() {
     const randomIndex = Math.floor(Math.random() * displayedItems.length);
     setRandomPick(displayedItems[randomIndex]);
   };
-
-  const isSearchActive = explore.query.trim().length > 0;
 
   return (
     <main className="min-h-dvh bg-background text-foreground font-sans p-4 sm:p-6 md:p-8 lg:p-10 relative pb-[calc(1rem+env(safe-area-inset-bottom))]">
@@ -562,76 +596,16 @@ export default function Home() {
         onUpdated={auth.loadProfile}
       />
 
-      {isPrivacyModalOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border p-6 rounded-3xl max-w-md w-full space-y-4 text-left shadow-2xl relative animate-in fade-in zoom-in-95">
-            <button
-              onClick={() => setIsPrivacyModalOpen(false)}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground p-1"
-            >
-              <X className="w-4 h-4" />
-            </button>
+      <PrivacyModal
+        isOpen={isPrivacyModalOpen}
+        onClose={() => setIsPrivacyModalOpen(false)}
+      />
 
-            <div className="flex items-center gap-2 text-accent">
-              <ShieldCheck className="w-5 h-5" />
-              <h3 className="text-base font-bold text-foreground">
-                Gizlilik & KVKK Aydınlatması
-              </h3>
-            </div>
-
-            <div className="text-xs text-muted-foreground leading-relaxed space-y-2 max-h-[60vh] overflow-y-auto pr-1">
-              <p>
-                Bu uygulama kapsamında, hesabınızı oluşturabilmeniz, izleme
-                geçmişinizi kaydedebilmeniz ve arkadaşlarınızla paylaşabilmeniz
-                amacıyla e-posta adresiniz, kullanıcı adınız ve uygulama içi
-                etkileşim verileriniz (izlediğiniz/kaydettiğiniz içerikler ve
-                puanlarınız) Supabase altyapısı üzerinde saklanmaktadır.
-              </p>
-              <p>
-                Kişisel verileriniz hiçbir şekilde 3. taraflarla satılmaz veya
-                pazarlama amacıyla kullanılmaz.
-              </p>
-              <p>
-                Hesabınızı ve saklanan tüm verilerinizi kalıcı olarak sildirmek
-                veya bilgi almak için uygulama geliştiricisi ile iletişime
-                geçebilirsiniz.
-              </p>
-            </div>
-
-            <button
-              onClick={() => setIsPrivacyModalOpen(false)}
-              className="w-full bg-accent text-accent-foreground text-xs font-bold py-2.5 rounded-xl transition-all mt-2"
-            >
-              Anladım
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Yığılan Toast Listesi */}
-      {toasts.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 max-w-[90vw] pointer-events-none">
-          {toasts.map((t) => (
-            <div
-              key={t.id}
-              className="bg-card border border-border text-foreground text-xs px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 pointer-events-auto animate-in fade-in slide-in-from-bottom-2 duration-200"
-            >
-              <div className="flex items-center gap-2 truncate">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span className="truncate">{t.message}</span>
-              </div>
-              {logsManager.previousLogsRef.current && (
-                <button
-                  onClick={handleUndo}
-                  className="bg-accent/20 hover:bg-accent/30 text-accent px-2.5 py-1 rounded-lg text-[11px] font-bold border border-accent/30 transition-all flex items-center gap-1 flex-shrink-0 ml-auto"
-                >
-                  <RotateCcw className="w-3 h-3" /> Geri Al
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      <ToastList
+        toasts={toasts}
+        onUndo={handleUndo}
+        canUndo={!!logsManager.previousLogsRef.current}
+      />
 
       {showFab && activeTab !== "stats" && activeTab !== "feed" && (
         <button
@@ -648,198 +622,27 @@ export default function Home() {
         </button>
       )}
 
-      {randomPick && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border p-6 rounded-3xl max-w-sm w-full space-y-4 text-center shadow-2xl relative animate-in fade-in zoom-in-95">
-            <button
-              onClick={() => setRandomPick(null)}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground p-1"
-            >
-              <X className="w-4 h-4" />
-            </button>
-
-            <div className="inline-flex p-3 rounded-full bg-accent/10 text-accent border border-accent/20">
-              <Sparkles className="w-6 h-6" />
-            </div>
-
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-accent">
-                Rastgele Seçim
-              </p>
-              <h3 className="text-lg font-extrabold text-foreground mt-1">
-                {randomPick.title || randomPick.name}
-              </h3>
-            </div>
-
-            <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">
-              {randomPick.overview || "Açıklama bulunmuyor."}
-            </p>
-
-            <div className="pt-2 flex gap-2">
-              <button
-                onClick={() => {
-                  setSelectedItem(randomPick);
-                  setRandomPick(null);
-                }}
-                className="flex-1 bg-accent text-accent-foreground text-xs font-bold py-2.5 rounded-xl transition-all"
-              >
-                Detayları Gör
-              </button>
-              <button
-                onClick={handlePickRandomFromWatchlist}
-                className="bg-muted hover:bg-muted/80 text-foreground p-2.5 rounded-xl border border-border transition-colors"
-                title="Tekrar Zar At"
-              >
-                <Dices className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <RandomPickModal
+        item={randomPick}
+        onClose={() => setRandomPick(null)}
+        onSelect={(item) => {
+          setSelectedItem(item);
+          setRandomPick(null);
+        }}
+        onReroll={handlePickRandomFromWatchlist}
+      />
 
       <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
-        <header className="sticky top-0 z-40 bg-background/90 border-b border-border -mx-4 sm:-mx-6 md:-mx-8 lg:-mx-10 px-4 sm:px-6 md:px-8 lg:px-10 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all">
-          <div className="flex items-center gap-3">
-            <div className="relative w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 bg-accent/10 border border-accent/20 flex items-center justify-center p-1.5">
-              <div
-                className="w-full h-full bg-accent dark:bg-foreground transition-colors duration-200"
-                style={{
-                  maskImage: "url(/logo.svg)",
-                  maskRepeat: "no-repeat",
-                  maskPosition: "center",
-                  maskSize: "contain",
-                  WebkitMaskImage: "url(/logo.svg)",
-                  WebkitMaskRepeat: "no-repeat",
-                  WebkitMaskPosition: "center",
-                  WebkitMaskSize: "contain",
-                }}
-              />
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-2xl font-bold tracking-tight text-foreground leading-none">
-                Backstory
-              </h1>
-
-              <div className="flex items-center gap-1.5">
-                <a
-                  href="https://www.themoviedb.org/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="This product uses the TMDB API but is not endorsed or certified by TMDB."
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-card border border-border hover:border-border/80 transition-all opacity-80 hover:opacity-100"
-                >
-                  <div className="h-3.5 w-auto relative">
-                    <Image
-                      src="/tmdb-logo.svg"
-                      alt="TMDB Logo"
-                      width={60}
-                      height={14}
-                      className="h-3.5 w-auto object-contain"
-                    />
-                  </div>
-                </a>
-
-                <button
-                  onClick={() => setIsPrivacyModalOpen(true)}
-                  title="Gizlilik & KVKK Aydınlatması"
-                  className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-accent hover:border-border/80 transition-all flex items-center justify-center"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <nav className="flex items-center gap-1 bg-card p-1.5 rounded-xl border border-border overflow-x-auto no-scrollbar">
-              <button
-                onClick={() => setActiveTab("explore")}
-                className={`px-3.5 sm:px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                  activeTab === "explore"
-                    ? "bg-muted text-accent shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Keşfet
-              </button>
-              <button
-                onClick={() => setActiveTab("completed")}
-                className={`px-3.5 sm:px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                  activeTab === "completed"
-                    ? "bg-muted text-accent shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Bitirdiklerim
-              </button>
-              <button
-                onClick={() => setActiveTab("watchlist")}
-                className={`px-3.5 sm:px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
-                  activeTab === "watchlist"
-                    ? "bg-muted text-accent shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                İzlenecekler
-              </button>
-              <button
-                onClick={() => setActiveTab("feed")}
-                className={`px-3.5 sm:px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
-                  activeTab === "feed"
-                    ? "bg-accent/10 border border-accent/30 text-accent shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Users className="w-3.5 h-3.5" />
-                Arkadaş Akışı
-              </button>
-              <button
-                onClick={() => setActiveTab("stats")}
-                className={`px-3.5 sm:px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
-                  activeTab === "stats"
-                    ? "bg-accent/10 border border-accent/30 text-accent shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <BarChart3 className="w-3.5 h-3.5" />
-                İstatistikler
-              </button>
-            </nav>
-
-            {auth.isAuthenticated ? (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setIsProfileModalOpen(true)}
-                  title="Profilini Düzenle"
-                  className="px-3 py-2 rounded-xl bg-card border border-border text-foreground hover:text-accent transition-colors flex items-center gap-2 text-xs font-semibold flex-shrink-0"
-                >
-                  <span className="text-sm">
-                    {auth.userProfile?.avatarUrl || "🎬"}
-                  </span>
-                  <span className="hidden sm:inline">
-                    {auth.userProfile?.displayName || "Profil"}
-                  </span>
-                </button>
-                <button
-                  onClick={auth.handleLogout}
-                  title="Çıkış Yap"
-                  className="p-2.5 rounded-xl bg-card border border-border text-muted-foreground hover:text-red-400 transition-colors flex-shrink-0"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => auth.setIsAuthModalOpen(true)}
-                className="px-4 py-2 rounded-xl bg-accent text-accent-foreground transition-colors flex items-center gap-2 text-xs font-bold flex-shrink-0"
-              >
-                <LogIn className="w-4 h-4" />
-                <span>Giriş Yap</span>
-              </button>
-            )}
-          </div>
-        </header>
+        <Header
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          isAuthenticated={auth.isAuthenticated}
+          userProfile={auth.userProfile}
+          onLoginClick={() => auth.setIsAuthModalOpen(true)}
+          onLogoutClick={auth.handleLogout}
+          onProfileClick={() => setIsProfileModalOpen(true)}
+          onPrivacyClick={() => setIsPrivacyModalOpen(true)}
+        />
 
         {activeTab === "stats" ? (
           <StatsDashboard
@@ -847,8 +650,8 @@ export default function Home() {
             onNavigateToExplore={() => setActiveTab("explore")}
             onOpenRatingManager={() => setIsRatingManagerOpen(true)}
             onSelectItem={handleSelectItem}
-            onToggleCompleted={handleToggleCompleted}
-            onToggleWatchlist={handleToggleWatchlist}
+            onToggleCompleted={handleDrawerToggleCompleted}
+            onToggleWatchlist={handleDrawerToggleWatchlist}
           />
         ) : activeTab === "feed" ? (
           <ActivityFeed
@@ -857,8 +660,8 @@ export default function Home() {
             userWatchedIds={userWatchedIds}
             userWatchlistIds={userWatchlistIds}
             onSelectItem={handleSelectItem}
-            onQuickAddToWatchlist={handleToggleWatchlist}
-            onQuickToggleCompleted={handleToggleCompleted}
+            onQuickAddToWatchlist={handleCardToggleWatchlist}
+            onQuickToggleCompleted={handleCardToggleCompleted}
           />
         ) : (
           <section className="space-y-4">
@@ -1024,20 +827,6 @@ export default function Home() {
                     </button>
                   )}
 
-                  {explore.selectedProviderId !== null && (
-                    <button
-                      onClick={() => explore.setSelectedProviderId(null)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-card border border-border rounded-lg text-xs text-accent transition-colors whitespace-nowrap"
-                    >
-                      <span>
-                        {explore.providers.find(
-                          (p) => p.provider_id === explore.selectedProviderId,
-                        )?.provider_name || "Platform"}
-                      </span>
-                      <X className="w-3 h-3 text-muted-foreground" />
-                    </button>
-                  )}
-
                   {explore.minRating > 0 && (
                     <button
                       onClick={() => explore.setMinRating(0)}
@@ -1074,6 +863,20 @@ export default function Home() {
                     </button>
                   )}
 
+                  {explore.selectedProviderId !== null && (
+                    <button
+                      onClick={() => explore.setSelectedProviderId(null)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-card border border-border rounded-lg text-xs text-accent transition-colors whitespace-nowrap"
+                    >
+                      <span>
+                        {explore.providers.find(
+                          (p) => p.provider_id === explore.selectedProviderId,
+                        )?.provider_name || "Platform"}
+                      </span>
+                      <X className="w-3 h-3 text-muted-foreground" />
+                    </button>
+                  )}
+
                   <button
                     onClick={explore.handleResetFilters}
                     className="text-xs text-muted-foreground hover:text-foreground underline ml-auto whitespace-nowrap"
@@ -1083,359 +886,14 @@ export default function Home() {
                 </div>
               )}
 
-              <div
-                className={`fixed inset-0 bg-black/60 z-50 transition-opacity duration-200 ${
-                  explore.showFilters
-                    ? "opacity-100 pointer-events-auto"
-                    : "opacity-0 pointer-events-none"
-                }`}
-                onClick={() => explore.setShowFilters(false)}
+              <FilterPanel
+                show={explore.showFilters}
+                onClose={() => explore.setShowFilters(false)}
+                activeTab={activeTab}
+                explore={explore}
+                modalSearchInputRef={modalSearchInputRef}
+                displayedItemsLength={displayedItems.length}
               />
-
-              <div
-                className={`fixed inset-x-0 bottom-0 z-50 bg-card border-t border-border rounded-t-3xl p-5 space-y-4 shadow-2xl max-h-[75vh] overflow-y-auto no-scrollbar max-w-2xl mx-auto transition-transform duration-300 ease-out will-change-transform ${
-                  explore.showFilters ? "translate-y-0" : "translate-y-full"
-                }`}
-              >
-                <div className="w-12 h-1 bg-muted-foreground/40 rounded-full mx-auto mb-1 flex-shrink-0" />
-
-                <div className="flex items-center justify-between pb-2 border-b border-border">
-                  <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                    <SlidersHorizontal className="w-4 h-4 text-accent" />
-                    Filtrele & Ara
-                  </h3>
-                  <button
-                    onClick={() => explore.setShowFilters(false)}
-                    className="p-1 text-muted-foreground hover:text-foreground rounded-lg bg-muted/60"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                    Arama Metni
-                  </label>
-                  <div className="relative">
-                    <input
-                      ref={modalSearchInputRef}
-                      type="text"
-                      placeholder={
-                        activeTab === "explore"
-                          ? "Film veya dizi arayın..."
-                          : activeTab === "completed"
-                            ? "İzlediklerinizde arayın..."
-                            : "Listenizde arayın..."
-                      }
-                      value={explore.query}
-                      onChange={(e) => explore.setQuery(e.target.value)}
-                      className="w-full bg-background border border-border rounded-xl py-2.5 pl-9 pr-8 text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:border-accent/50 transition-all shadow-inner"
-                    />
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
-                    {explore.query && (
-                      <button
-                        onClick={() => explore.setQuery("")}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-2">
-                    Medya Türü
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { id: "all", label: "Tümü" },
-                      { id: "movie", label: "Film" },
-                      { id: "tv", label: "Dizi" },
-                    ].map((type) => (
-                      <button
-                        key={type.id}
-                        onClick={() =>
-                          explore.setSelectedMediaType(
-                            type.id as "all" | "movie" | "tv",
-                          )
-                        }
-                        className={`py-2 px-3 rounded-xl text-xs font-medium border transition-all ${
-                          explore.selectedMediaType === type.id
-                            ? "bg-accent/10 border-accent/50 text-accent"
-                            : "bg-background/60 border-border text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        {type.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {isSearchActive && activeTab === "explore" && (
-                  <div className="bg-accent/10 border border-accent/20 rounded-xl p-2.5 text-[11px] text-accent flex items-center gap-2">
-                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span>
-                      Arama yaparken Kategori, Platform, Puan ve Yıl filtreleri
-                      TMDB aramasına uygulanamaz.
-                    </span>
-                  </div>
-                )}
-
-                <div
-                  className={
-                    isSearchActive && activeTab === "explore"
-                      ? "opacity-40 pointer-events-none transition-opacity space-y-4"
-                      : "space-y-4 transition-opacity"
-                  }
-                >
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-2">
-                      Platform (Türkiye)
-                    </label>
-                    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto no-scrollbar">
-                      {explore.providers.map((provider) => {
-                        const isSelected =
-                          explore.selectedProviderId === provider.provider_id;
-                        return (
-                          <button
-                            key={provider.provider_id}
-                            onClick={() =>
-                              explore.setSelectedProviderId(
-                                isSelected ? null : provider.provider_id,
-                              )
-                            }
-                            className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl text-xs font-medium border transition-all ${
-                              isSelected
-                                ? "bg-accent/10 border-accent/50 text-accent"
-                                : "bg-background/60 border-border text-muted-foreground hover:text-foreground"
-                            }`}
-                          >
-                            {provider.logo_path && (
-                              <div className="w-4 h-4 relative flex-shrink-0">
-                                <Image
-                                  src={`https://image.tmdb.org/t/p/w45${provider.logo_path}`}
-                                  alt={provider.provider_name}
-                                  fill
-                                  sizes="16px"
-                                  className="rounded-md object-cover"
-                                />
-                              </div>
-                            )}
-                            <span>{provider.provider_name}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                        <Star className="w-3.5 h-3.5 text-accent fill-accent" />
-                        Minimum Puan
-                      </label>
-                      <span className="text-xs font-bold text-accent bg-accent/10 border border-accent/20 px-2 py-0.5 rounded-md">
-                        {explore.minRating === 0
-                          ? "Tüm Puanlar"
-                          : `${explore.minRating.toFixed(1)}+`}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="9.5"
-                      step="0.5"
-                      value={explore.minRating}
-                      onChange={(e) =>
-                        explore.setMinRating(parseFloat(e.target.value))
-                      }
-                      className="w-full accent-accent bg-background h-2 rounded-lg cursor-pointer"
-                    />
-                    <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-                      <span>0.0</span>
-                      <span>5.0</span>
-                      <span>7.0</span>
-                      <span>9.5</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-medium text-muted-foreground">
-                        Çıkış Yılı Aralığı
-                      </label>
-                      <span className="text-xs font-bold text-accent bg-accent/10 border border-accent/20 px-2 py-0.5 rounded-md">
-                        {explore.yearRange.start} - {explore.yearRange.end}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <span className="text-[10px] text-muted-foreground block mb-1">
-                          Başlangıç: {explore.yearRange.start}
-                        </span>
-                        <input
-                          type="range"
-                          min="1950"
-                          max={explore.yearRange.end}
-                          step="1"
-                          value={explore.yearRange.start}
-                          onChange={(e) =>
-                            explore.setYearRange((prev) => ({
-                              ...prev,
-                              start: parseInt(e.target.value, 10),
-                            }))
-                          }
-                          className="w-full accent-accent bg-background h-2 rounded-lg cursor-pointer"
-                        />
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-muted-foreground block mb-1">
-                          Bitiş: {explore.yearRange.end}
-                        </span>
-                        <input
-                          type="range"
-                          min={explore.yearRange.start}
-                          max={new Date().getFullYear()}
-                          step="1"
-                          value={explore.yearRange.end}
-                          onChange={(e) =>
-                            explore.setYearRange((prev) => ({
-                              ...prev,
-                              end: parseInt(e.target.value, 10),
-                            }))
-                          }
-                          className="w-full accent-accent bg-background h-2 rounded-lg cursor-pointer"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-2">
-                      Kategori
-                    </label>
-                    <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto no-scrollbar">
-                      <button
-                        onClick={() => explore.setSelectedGenreId(null)}
-                        className={`py-1.5 px-3 rounded-lg text-xs font-medium border transition-all ${
-                          explore.selectedGenreId === null
-                            ? "bg-accent/10 border-accent/50 text-accent"
-                            : "bg-background/60 border-border text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        Tümü
-                      </button>
-                      {GENRES_LIST.map((genre) => (
-                        <button
-                          key={genre.id}
-                          onClick={() =>
-                            explore.setSelectedGenreId(
-                              explore.selectedGenreId === genre.id
-                                ? null
-                                : genre.id,
-                            )
-                          }
-                          className={`py-1.5 px-3 rounded-lg text-xs font-medium border transition-all ${
-                            explore.selectedGenreId === genre.id
-                              ? "bg-accent/10 border-accent/50 text-accent"
-                              : "bg-background/60 border-border text-muted-foreground hover:text-foreground"
-                          }`}
-                        >
-                          {genre.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-2">
-                      Sıralama
-                    </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {activeTab === "explore"
-                        ? [
-                            { id: "popularity.desc", label: "Popülerlik" },
-                            {
-                              id: "vote_average.desc",
-                              label: "Tüm Zamanların En İyileri",
-                            },
-                            {
-                              id: "vote_count.desc",
-                              label: "En Çok Oylananlar",
-                            },
-                          ].map((sortOption) => (
-                            <button
-                              key={sortOption.id}
-                              onClick={() =>
-                                explore.setSortBy(
-                                  sortOption.id as typeof explore.sortBy,
-                                )
-                              }
-                              className={`py-2 px-2 text-center rounded-xl text-xs font-medium border transition-all ${
-                                explore.sortBy === sortOption.id
-                                  ? "bg-accent/10 border-accent/50 text-accent"
-                                  : "bg-background/60 border-border text-muted-foreground hover:text-foreground"
-                              }`}
-                            >
-                              {sortOption.label}
-                            </button>
-                          ))
-                        : [
-                            { id: "updated_at.desc", label: "Son Eklenenler" },
-                            { id: "my_rating.desc", label: "Puanım" },
-                            { id: "watch_count.desc", label: "İzleme Sayısı" },
-                            { id: "vote_average.desc", label: "TMDB Puanı" },
-                          ].map((sortOption) => (
-                            <button
-                              key={sortOption.id}
-                              onClick={() =>
-                                explore.setSortBy(
-                                  sortOption.id as typeof explore.sortBy,
-                                )
-                              }
-                              className={`py-2 px-2 text-center rounded-xl text-xs font-medium border transition-all ${
-                                explore.sortBy === sortOption.id
-                                  ? "bg-accent/10 border-accent/50 text-accent"
-                                  : "bg-background/60 border-border text-muted-foreground hover:text-foreground"
-                              }`}
-                            >
-                              {sortOption.label}
-                            </button>
-                          ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-border flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">
-                    {explore.activeFilterCount > 0
-                      ? `${explore.activeFilterCount} filtre aktif`
-                      : "Filtre yok"}
-                  </span>
-                  <div className="flex gap-2">
-                    {explore.activeFilterCount > 0 && (
-                      <button
-                        onClick={explore.handleResetFilters}
-                        className="text-xs font-medium text-muted-foreground hover:text-accent transition-colors px-3 py-1.5"
-                      >
-                        Sıfırla
-                      </button>
-                    )}
-                    <button
-                      onClick={() => explore.setShowFilters(false)}
-                      className="bg-accent text-accent-foreground font-bold text-xs px-4 py-1.5 rounded-xl transition-all flex items-center gap-1.5"
-                    >
-                      <span>Tamam</span>
-                      {activeTab !== "explore" && (
-                        <span className="bg-background/20 px-1.5 py-0.2 rounded-md text-[10px]">
-                          {displayedItems.length}
-                        </span>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
             </div>
 
             <div className="flex items-center justify-between pt-2">
@@ -1458,7 +916,9 @@ export default function Home() {
               {activeTab === "explore" &&
                 explore.exploreMode === "personalized" && (
                   <button
-                    onClick={() => recommendations.fetchRecommendations()}
+                    onClick={() =>
+                      recommendations.fetchRecommendations(undefined, true)
+                    }
                     className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
                   >
                     <RefreshCw className="w-3.5 h-3.5" /> Yeniden Hesapla
@@ -1484,7 +944,7 @@ export default function Home() {
                 <button
                   onClick={() => {
                     if (explore.exploreMode === "personalized") {
-                      recommendations.fetchRecommendations();
+                      recommendations.fetchRecommendations(undefined, true);
                     } else {
                       explore.fetchContent(1, true);
                     }
@@ -1553,8 +1013,8 @@ export default function Home() {
                           explore.nowPlayingIds.has(item.id)
                         }
                         onSelect={handleSelectItem}
-                        onToggleCompleted={handleToggleCompleted}
-                        onToggleWatchlist={handleToggleWatchlist}
+                        onToggleCompleted={handleCardToggleCompleted}
+                        onToggleWatchlist={handleCardToggleWatchlist}
                       />
                     );
                   })}
@@ -1591,30 +1051,25 @@ export default function Home() {
             detailError={detailError}
             currentLog={logsManager.logs[logsManager.getItemKey(selectedItem)]}
             onClose={handleCloseDrawer}
-            onGenreSelect={(genreId) => {
-              explore.setSelectedGenreId(genreId);
+            onGenreSelect={(tmdbGenreId: number) => {
+              const matchedCategory = GENRES_LIST.find(
+                (g) =>
+                  g.movieIds.includes(tmdbGenreId) ||
+                  g.tvIds.includes(tmdbGenreId),
+              );
+              if (matchedCategory) {
+                explore.setSelectedGenreId(matchedCategory.id);
+              } else {
+                explore.setSelectedGenreId(null);
+              }
               setSelectedItem(null);
               setActiveTab("explore");
             }}
             onSelectItem={handleSelectItem}
-            onToggleCompleted={() => handleToggleCompleted(selectedItem)}
-            onToggleWatchlist={() => handleToggleWatchlist(selectedItem)}
-            onUpdateRating={(rating) =>
-              logsManager.setRating(
-                selectedItem,
-                rating,
-                selectedItem,
-                detailData,
-              )
-            }
-            onUpdateWatchCount={(count) =>
-              logsManager.updateWatchCount(
-                selectedItem,
-                count,
-                selectedItem,
-                detailData,
-              )
-            }
+            onToggleCompleted={handleDrawerToggleCompleted}
+            onToggleWatchlist={handleDrawerToggleWatchlist}
+            onUpdateRating={handleDrawerUpdateRating}
+            onUpdateWatchCount={handleDrawerUpdateWatchCount}
             onRetry={fetchDetails}
           />
         )}
@@ -1624,6 +1079,9 @@ export default function Home() {
           logs={logsManager.logs}
           onClose={() => setIsRatingManagerOpen(false)}
           onUpdateRating={(item, rating) => logsManager.setRating(item, rating)}
+          onBulkUpdateRating={(items, rating) =>
+            logsManager.bulkUpdateRating(items, rating)
+          }
           onSelectItem={handleSelectItem}
         />
       </div>

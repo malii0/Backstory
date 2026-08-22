@@ -27,11 +27,11 @@ const google = createGoogleGenerativeAI({
   apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
 });
 
-// Zod Doğrulama ve Yük Sınırlandırması (Maksimum 30 öğe)
+// Zod Doğrulama ve Yük Sınırlandırması (Maksimum 5000 öğe olarak güncellendi)
 const requestSchema = z.object({
   watchlist: z.array(z.any()).max(30).default([]),
   favorites: z.array(z.any()).max(30).default([]),
-  loggedKeys: z.array(z.string()).max(1000).default([]),
+  loggedKeys: z.array(z.string()).max(5000).default([]),
 });
 
 export async function POST(req: Request) {
@@ -236,7 +236,6 @@ For EACH candidate, explain in EXACTLY 1 concise sentence in TURKISH why it matc
     });
   } catch (error: unknown) {
     console.error("AI RECOMMEND API ERROR DETAILS:", error);
-    // İç hata mesajları yerine jenerik mesaj (Güvenlik iyileştirmesi)
     return NextResponse.json(
       {
         error:

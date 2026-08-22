@@ -208,9 +208,7 @@ export default function DetailDrawer({
           }
           setCollectionData(data);
         }
-      } catch (e) {
-        console.error("Koleksiyon verisi alınamadı", e);
-      }
+      } catch (e) {}
     };
 
     fetchCollection();
@@ -252,10 +250,12 @@ export default function DetailDrawer({
             items = data.cast || [];
           }
 
-          const map = new Map<number, MediaItem>();
+          const map = new Map<string, MediaItem>();
           items.forEach((item) => {
-            if (!map.has(item.id)) {
-              map.set(item.id, {
+            const mType = item.media_type || "movie";
+            const key = `${mType}_${item.id}`;
+            if (!map.has(key)) {
+              map.set(key, {
                 id: item.id,
                 title: item.title,
                 name: item.name,
@@ -263,7 +263,7 @@ export default function DetailDrawer({
                 release_date: item.release_date,
                 first_air_date: item.first_air_date,
                 vote_average: item.vote_average,
-                media_type: item.media_type || "movie",
+                media_type: mType,
               });
             }
           });
@@ -274,7 +274,6 @@ export default function DetailDrawer({
           setFilmography(sorted);
         }
       } catch (err) {
-        console.error("Filmografi çekilemedi:", err);
       } finally {
         if (isMounted) {
           setIsFilmographyLoading(false);
@@ -294,21 +293,24 @@ export default function DetailDrawer({
     const recs = detailData.recommendations?.results || [];
     const sims = detailData.similar?.results || [];
 
-    const combinedMap = new Map<number, MediaItem>();
+    const combinedMap = new Map<string, MediaItem>();
 
-    recs.forEach((item) =>
-      combinedMap.set(item.id, {
+    recs.forEach((item) => {
+      const type = item.media_type || selectedItem.media_type;
+      combinedMap.set(`${type}_${item.id}`, {
         ...item,
-        media_type: item.media_type || selectedItem.media_type,
-      }),
-    );
+        media_type: type,
+      });
+    });
 
     if (combinedMap.size < 10) {
       sims.forEach((item) => {
-        if (!combinedMap.has(item.id)) {
-          combinedMap.set(item.id, {
+        const type = item.media_type || selectedItem.media_type;
+        const key = `${type}_${item.id}`;
+        if (!combinedMap.has(key)) {
+          combinedMap.set(key, {
             ...item,
-            media_type: item.media_type || selectedItem.media_type,
+            media_type: type,
           });
         }
       });
@@ -420,50 +422,56 @@ export default function DetailDrawer({
               </p>
             ) : (
               <div className="overflow-y-auto custom-scrollbar flex-1 space-y-2 pr-1">
-                {filmography.slice(0, filmographyLimit).map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => {
-                      onSelectItem(item);
-                      setActivePerson(null);
-                      setFilmography([]);
-                    }}
-                    className="flex items-center gap-3 p-2 rounded-xl bg-background/60 hover:bg-muted/80 border border-border/80 cursor-pointer transition-all group"
-                  >
-                    {item.poster_path ? (
-                      <div className="w-10 h-14 relative flex-shrink-0">
-                        <Image
-                          src={`https://image.tmdb.org/t/p/w92${item.poster_path}`}
-                          alt={item.title || item.name || "Afiş"}
-                          fill
-                          sizes="40px"
-                          className="object-cover rounded-lg"
-                        />
+                {filmography.slice(0, filmographyLimit).map((item) => {
+                  const mType = item.media_type || "movie";
+                  const key = `${mType}_${item.id}`;
+                  return (
+                    <div
+                      key={key}
+                      onClick={() => {
+                        onSelectItem(item);
+                        setActivePerson(null);
+                        setFilmography([]);
+                      }}
+                      className="flex items-center gap-3 p-2 rounded-xl bg-background/60 hover:bg-muted/80 border border-border/80 cursor-pointer transition-all group"
+                    >
+                      {item.poster_path ? (
+                        <div className="w-10 h-14 relative flex-shrink-0">
+                          <Image
+                            src={`https://image.tmdb.org/t/p/w92${item.poster_path}`}
+                            alt={item.title || item.name || "Afiş"}
+                            fill
+                            sizes="40px"
+                            className="object-cover rounded-lg"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-10 h-14 bg-muted rounded-lg flex items-center justify-center text-muted-foreground flex-shrink-0">
+                          <Film className="w-5 h-5" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-foreground group-hover:text-accent transition-colors truncate">
+                          {item.title || item.name}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {(
+                            item.release_date ||
+                            item.first_air_date ||
+                            ""
+                          ).split("-")[0] || "N/A"}{" "}
+                          • {mType === "tv" ? "Dizi" : "Film"}
+                        </p>
                       </div>
-                    ) : (
-                      <div className="w-10 h-14 bg-muted rounded-lg flex items-center justify-center text-muted-foreground flex-shrink-0">
-                        <Film className="w-5 h-5" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-foreground group-hover:text-accent transition-colors truncate">
-                        {item.title || item.name}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {(item.release_date || item.first_air_date || "").split(
-                          "-",
-                        )[0] || "N/A"}{" "}
-                        • {item.media_type === "tv" ? "Dizi" : "Film"}
-                      </p>
+                      {item.vote_average && item.vote_average > 0 ? (
+                        <span className="text-xs font-bold text-accent flex items-center gap-1">
+                          <Star className="w-3 h-3 fill-accent text-accent" />
+                          {item.vote_average.toFixed(1)}
+                        </span>
+                      ) : null}
                     </div>
-                    {item.vote_average && item.vote_average > 0 ? (
-                      <span className="text-xs font-bold text-accent flex items-center gap-1">
-                        <Star className="w-3 h-3 fill-accent text-accent" />
-                        {item.vote_average.toFixed(1)}
-                      </span>
-                    ) : null}
-                  </div>
-                ))}
+                  );
+                })}
 
                 {filmography.length > filmographyLimit && (
                   <button
@@ -929,32 +937,37 @@ export default function DetailDrawer({
                 Benzer & Önerilen İçerikler
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                {smartRecommendations.map((rec) => (
-                  <div
-                    key={rec.id}
-                    onClick={() => onSelectItem(rec)}
-                    className="bg-card border border-border/80 rounded-xl p-2 cursor-pointer hover:border-accent/40 transition-all group flex flex-col justify-between"
-                  >
-                    {rec.poster_path ? (
-                      <div className="w-full aspect-[2/3] relative rounded-lg overflow-hidden mb-1.5">
-                        <Image
-                          src={`https://image.tmdb.org/t/p/w185${rec.poster_path}`}
-                          alt={rec.title || rec.name || "Öneri"}
-                          fill
-                          sizes="(max-width: 640px) 50vw, 20vw"
-                          className="object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-full aspect-[2/3] bg-muted rounded-lg mb-1.5 flex items-center justify-center text-muted-foreground">
-                        <Film className="w-6 h-6" />
-                      </div>
-                    )}
-                    <p className="text-[11px] font-semibold text-foreground line-clamp-1 group-hover:text-accent">
-                      {rec.title || rec.name}
-                    </p>
-                  </div>
-                ))}
+                {smartRecommendations.map((rec) => {
+                  const rType =
+                    rec.media_type || selectedItem.media_type || "movie";
+                  const key = `${rType}_${rec.id}`;
+                  return (
+                    <div
+                      key={key}
+                      onClick={() => onSelectItem(rec)}
+                      className="bg-card border border-border/80 rounded-xl p-2 cursor-pointer hover:border-accent/40 transition-all group flex flex-col justify-between"
+                    >
+                      {rec.poster_path ? (
+                        <div className="w-full aspect-[2/3] relative rounded-lg overflow-hidden mb-1.5">
+                          <Image
+                            src={`https://image.tmdb.org/t/p/w185${rec.poster_path}`}
+                            alt={rec.title || rec.name || "Öneri"}
+                            fill
+                            sizes="(max-width: 640px) 50vw, 20vw"
+                            className="object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-full aspect-[2/3] bg-muted rounded-lg mb-1.5 flex items-center justify-center text-muted-foreground">
+                          <Film className="w-6 h-6" />
+                        </div>
+                      )}
+                      <p className="text-[11px] font-semibold text-foreground line-clamp-1 group-hover:text-accent">
+                        {rec.title || rec.name}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
