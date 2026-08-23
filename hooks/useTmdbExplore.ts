@@ -144,7 +144,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
           }
         });
 
-        const ALLOWED_PROVIDER_IDS = [8, 119, 337, 350, 1899];
+        const ALLOWED_PROVIDER_IDS = [8, 119, 337, 1899];
 
         const filteredProviders = Array.from(uniqueMap.values())
           .filter((p) => ALLOWED_PROVIDER_IDS.includes(p.provider_id))
