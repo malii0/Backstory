@@ -2,6 +2,7 @@
 
 import React from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { ActivityFeedItem, MediaItem } from "@/lib/types";
 import {
   Star,
@@ -104,12 +105,19 @@ export default function ActivityFeed({
 
             <div className="flex-1 min-w-0 space-y-1">
               <div className="flex items-center gap-2">
-                <span className="text-base">
-                  {item.userProfile?.avatarUrl || "🎬"}
-                </span>
-                <span className="text-xs font-bold text-accent truncate">
-                  {item.userProfile?.displayName || "Arkadaş"}
-                </span>
+                <Link
+                  href={`/u/${item.userProfile?.username || ""}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center gap-2 hover:bg-background/80 p-1 -ml-1 rounded-lg transition-colors z-10"
+                  title={`${item.userProfile?.displayName} profiline git`}
+                >
+                  <span className="text-base">
+                    {item.userProfile?.avatarUrl || "🎬"}
+                  </span>
+                  <span className="text-xs font-bold text-accent truncate hover:underline">
+                    {item.userProfile?.displayName || "Arkadaş"}
+                  </span>
+                </Link>
                 <span className="text-[10px] text-muted-foreground ml-auto flex items-center gap-1">
                   <Clock className="w-3 h-3" /> {timeAgo}
                 </span>

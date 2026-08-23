@@ -19,7 +19,6 @@ interface HeaderProps {
   userProfile: UserProfile | null;
   onLoginClick: () => void;
   onLogoutClick: () => void;
-  onProfileClick: () => void;
   onPrivacyClick: () => void;
   isHidden?: boolean;
 }
@@ -28,10 +27,8 @@ export default function Header({
   activeTab,
   setActiveTab,
   isAuthenticated,
-  userProfile,
   onLoginClick,
   onLogoutClick,
-  onProfileClick,
   onPrivacyClick,
   isHidden = false,
 }: HeaderProps) {
@@ -163,16 +160,6 @@ export default function Header({
 
         {isAuthenticated ? (
           <div className="flex items-center gap-2">
-            <button
-              onClick={onProfileClick}
-              title="Profilim"
-              className="px-3 py-2 rounded-xl bg-card border border-border text-foreground hover:text-accent transition-colors flex items-center gap-2 text-xs font-semibold flex-shrink-0"
-            >
-              <span className="text-sm">{userProfile?.avatarUrl || "🎬"}</span>
-              <span className="hidden sm:inline">
-                {userProfile?.displayName || "Profil"}
-              </span>
-            </button>
             <button
               onClick={onLogoutClick}
               title="Çıkış Yap"

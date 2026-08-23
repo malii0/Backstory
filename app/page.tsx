@@ -649,7 +649,6 @@ export default function Home() {
           userProfile={auth.userProfile}
           onLoginClick={() => auth.setIsAuthModalOpen(true)}
           onLogoutClick={auth.handleLogout}
-          onProfileClick={() => setActiveTab("stats")}
           onPrivacyClick={() => setIsPrivacyModalOpen(true)}
           isHidden={isHeaderHidden}
         />
