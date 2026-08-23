@@ -14,6 +14,7 @@ interface HeaderProps {
   onLogoutClick: () => void;
   onProfileClick: () => void;
   onPrivacyClick: () => void;
+  isHidden?: boolean;
 }
 
 export default function Header({
@@ -25,9 +26,14 @@ export default function Header({
   onLogoutClick,
   onProfileClick,
   onPrivacyClick,
+  isHidden = false,
 }: HeaderProps) {
   return (
-    <header className="sticky top-0 z-40 bg-background/90 border-b border-border -mx-4 sm:-mx-6 md:-mx-8 lg:-mx-10 px-4 sm:px-6 md:px-8 lg:px-10 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all">
+    <header
+      className={`sticky top-0 z-40 bg-background/90 border-b border-border -mx-4 sm:-mx-6 md:-mx-8 lg:-mx-10 px-4 sm:px-6 md:px-8 lg:px-10 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all duration-300 ease-in-out ${
+        isHidden ? "-translate-y-full" : "translate-y-0"
+      }`}
+    >
       <div className="flex items-center gap-3">
         <div className="relative w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 bg-accent/10 border border-accent/20 flex items-center justify-center p-1.5">
           <div

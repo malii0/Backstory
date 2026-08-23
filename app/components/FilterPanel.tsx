@@ -12,7 +12,7 @@ interface FilterPanelProps {
   activeTab: ActiveTab;
   explore: ReturnType<typeof import("@/hooks/useTmdbExplore").useTmdbExplore>;
   modalSearchInputRef: React.RefObject<HTMLInputElement | null>;
-  displayedItemsLength: number;
+  displayedItemsLength: number | string;
 }
 
 export default function FilterPanel({
@@ -213,7 +213,7 @@ export default function FilterPanel({
                 </span>
                 <input
                   type="range"
-                  min="1950"
+                  min="1900"
                   max={explore.yearRange.end}
                   step="1"
                   value={explore.yearRange.start}

@@ -27,6 +27,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
   const [debouncedMinRating, setDebouncedMinRating] = useState<number>(0);
 
   const [searchResults, setSearchResults] = useState<MediaItem[]>([]);
+  const [totalResults, setTotalResults] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -222,6 +223,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
     setMinRating(0);
     setDebouncedMinRating(0);
     setExploreMode("standard");
+    setTotalResults(0);
     setSortBy(activeTab === "explore" ? "popularity.desc" : "updated_at.desc");
   }, [activeTab]);
 
@@ -354,6 +356,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
 
         if (pageNum === 1 || isNewSearch) {
           setSearchResults(results);
+          setTotalResults(data.total_results || 0);
         } else {
           setSearchResults((prev) => {
             const existingKeys = new Set(
@@ -426,6 +429,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
     query,
     setQuery,
     searchResults,
+    totalResults,
     isLoading,
     isFetchingMore,
     errorMessage,

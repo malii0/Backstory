@@ -58,6 +58,9 @@ import { fetchWithAuth } from "@/lib/fetchWithAuth";
 export default function Home() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("explore");
   const [showFab, setShowFab] = useState(false);
+  const [isHeaderHidden, setIsHeaderHidden] = useState(false);
+  const lastScrollY = useRef(0);
+
   const [activityFeed, setActivityFeed] = useState<ActivityFeedItem[]>([]);
   const [isFeedLoading, setIsFeedLoading] = useState(false);
   const lastFeedFetchRef = useRef<number>(0);
@@ -269,11 +272,24 @@ export default function Home() {
   };
 
   useEffect(() => {
-    const handleScrollFab = () => {
-      setShowFab(window.scrollY > 200);
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+
+      setShowFab(currentScrollY > 200);
+
+      if (currentScrollY < 50) {
+        setIsHeaderHidden(false);
+      } else if (currentScrollY > lastScrollY.current) {
+        setIsHeaderHidden(true);
+      } else if (currentScrollY < lastScrollY.current) {
+        setIsHeaderHidden(false);
+      }
+
+      lastScrollY.current = currentScrollY;
     };
-    window.addEventListener("scroll", handleScrollFab, { passive: true });
-    return () => window.removeEventListener("scroll", handleScrollFab);
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   useEffect(() => {
@@ -642,6 +658,7 @@ export default function Home() {
           onLogoutClick={auth.handleLogout}
           onProfileClick={() => setIsProfileModalOpen(true)}
           onPrivacyClick={() => setIsPrivacyModalOpen(true)}
+          isHidden={isHeaderHidden}
         />
 
         {activeTab === "stats" ? (
@@ -892,7 +909,14 @@ export default function Home() {
                 activeTab={activeTab}
                 explore={explore}
                 modalSearchInputRef={modalSearchInputRef}
-                displayedItemsLength={displayedItems.length}
+                displayedItemsLength={
+                  activeTab === "explore" &&
+                  explore.exploreMode !== "personalized"
+                    ? explore.totalResults >= 1000
+                      ? "1000+"
+                      : explore.totalResults
+                    : displayedItems.length
+                }
               />
             </div>
 
