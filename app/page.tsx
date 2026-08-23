@@ -669,6 +669,7 @@ export default function Home() {
             onSelectItem={handleSelectItem}
             onToggleCompleted={handleDrawerToggleCompleted}
             onToggleWatchlist={handleDrawerToggleWatchlist}
+            userProfile={auth.userProfile}
           />
         ) : activeTab === "feed" ? (
           <ActivityFeed

@@ -139,7 +139,7 @@ export default function Header({
             }`}
           >
             <BarChart3 className="w-3.5 h-3.5" />
-            İstatistikler
+            Profil
           </button>
         </nav>
 

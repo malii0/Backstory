@@ -2,7 +2,7 @@
 
 import React, { useMemo } from "react";
 import Image from "next/image";
-import { LogMetadata, MediaItem } from "@/lib/types";
+import { LogMetadata, MediaItem, UserProfile } from "@/lib/types";
 import { getEffectiveWatchCount } from "@/lib/utils";
 import { GENRES_LIST } from "@/lib/constants";
 import AIRecommendationsSection from "@/app/components/AIRecommendationsSection";
@@ -27,6 +27,7 @@ interface StatsDashboardProps {
   onToggleCompleted?: (item: MediaItem) => void;
   onToggleWatchlist?: (item: MediaItem) => void;
   userId?: string;
+  userProfile?: UserProfile | null;
 }
 
 export default function StatsDashboard({
@@ -36,6 +37,7 @@ export default function StatsDashboard({
   onToggleCompleted,
   onToggleWatchlist,
   userId,
+  userProfile,
 }: StatsDashboardProps) {
   const stats = useMemo(() => {
     const logEntries = Object.values(logs);
@@ -56,10 +58,10 @@ export default function StatsDashboard({
       .slice(0, 15);
 
     const totalMovies = completedLogs.filter(
-      (l) => l.itemData?.media_type === "movie"
+      (l) => l.itemData?.media_type === "movie",
     ).length;
     const totalTVs = completedLogs.filter(
-      (l) => l.itemData?.media_type === "tv"
+      (l) => l.itemData?.media_type === "tv",
     ).length;
 
     const ratedLogs = completedLogs.filter((l) => l.rating > 0);
@@ -113,7 +115,7 @@ export default function StatsDashboard({
     const totalHours = Math.floor(totalRuntimeMinutes / 60);
     const daysSpent = (totalRuntimeMinutes / (60 * 24)).toFixed(1);
     const remainingHoursInDay = Math.floor(
-      (totalRuntimeMinutes % (60 * 24)) / 60
+      (totalRuntimeMinutes % (60 * 24)) / 60,
     );
 
     let wittyTimeComparison = "Henüz yolun başındasın, ekran süren temiz!";
@@ -134,7 +136,7 @@ export default function StatsDashboard({
     completedLogs.forEach((l) => {
       l.itemData?.genre_ids?.forEach((tmdbId) => {
         const matchedCategory = GENRES_LIST.find(
-          (g) => g.movieIds.includes(tmdbId) || g.tvIds.includes(tmdbId)
+          (g) => g.movieIds.includes(tmdbId) || g.tvIds.includes(tmdbId),
         );
         if (matchedCategory) {
           genreCounts[matchedCategory.name] =
@@ -193,19 +195,24 @@ export default function StatsDashboard({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="flex items-center justify-between pb-2 border-b border-border/60">
-        <div>
-          <h2 className="text-xl font-extrabold text-foreground">
-            İstatistikleriniz
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            İzleme alışkanlıklarınız ve metrikleriniz
-          </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border/60">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 bg-background border border-border rounded-2xl flex items-center justify-center text-2xl shadow-sm shrink-0">
+            {userProfile?.avatarUrl || "🎬"}
+          </div>
+          <div>
+            <h2 className="text-xl font-extrabold text-foreground">
+              {userProfile?.displayName || "Profil"}
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              İzleme alışkanlıklarınız ve metrikleriniz
+            </p>
+          </div>
         </div>
 
         <button
           onClick={onOpenRatingManager}
-          className="bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
+          className="bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm shrink-0"
         >
           <SlidersHorizontal className="w-4 h-4" />
           <span>Yönetim</span>
