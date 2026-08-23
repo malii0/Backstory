@@ -64,6 +64,7 @@ export default function Header({
                   alt="TMDB Logo"
                   width={60}
                   height={14}
+                  unoptimized
                   className="h-3.5 w-auto object-contain"
                 />
               </div>

@@ -708,6 +708,7 @@ export default function DetailDrawer({
                         alt={p.provider_name}
                         fill
                         sizes="20px"
+                        unoptimized
                         className="object-cover"
                       />
                     </div>

@@ -27,7 +27,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Memory Leak koruması: Map limiti aşılırsa temizle
   if (rateLimitMap.size > 2000) {
     rateLimitMap.clear();
   }

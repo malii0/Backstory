@@ -162,6 +162,7 @@ export default function FilterPanel({
                           alt={provider.provider_name}
                           fill
                           sizes="16px"
+                          unoptimized
                           className="rounded-md object-cover"
                         />
                       </div>

@@ -137,6 +137,7 @@ export default function AuthModal({
               alt="Backstory Logo"
               fill
               sizes="48px"
+              unoptimized
               className="object-cover"
             />
           </div>
