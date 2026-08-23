@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { MediaItem, ActiveTab, WatchProviderInfo } from "@/lib/types"; // Tip güncellendi
+import { MediaItem, ActiveTab, WatchProviderInfo } from "@/lib/types";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { GENRES_LIST } from "@/lib/constants";
 
@@ -37,7 +37,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const [nowPlayingIds, setNowPlayingIds] = useState<Set<number>>(new Set());
-  const [providers, setProviders] = useState<WatchProviderInfo[]>([]); // Tip değişti
+  const [providers, setProviders] = useState<WatchProviderInfo[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<number | null>(
     null,
   );
@@ -144,12 +144,17 @@ export function useTmdbExplore(activeTab: ActiveTab) {
           }
         });
 
-        // TMDB'nin önceliğine göre sıralama sağlandı (Türkiye platformlarını öne çıkarır)
-        const providersArr = Array.from(uniqueMap.values());
-        providersArr.sort(
-          (a, b) => (a.display_priority || 1000) - (b.display_priority || 1000),
-        );
-        setProviders(providersArr.slice(0, 24)); // Daha kapsayıcı platform limiti
+        const ALLOWED_PROVIDER_IDS = [8, 119, 337, 350, 1899];
+
+        const filteredProviders = Array.from(uniqueMap.values())
+          .filter((p) => ALLOWED_PROVIDER_IDS.includes(p.provider_id))
+          .sort(
+            (a, b) =>
+              ALLOWED_PROVIDER_IDS.indexOf(a.provider_id) -
+              ALLOWED_PROVIDER_IDS.indexOf(b.provider_id),
+          );
+
+        setProviders(filteredProviders);
       } catch (err) {
         console.error("Platform sağlayıcıları çekilemedi:", err);
       }
