@@ -26,7 +26,7 @@ import DetailDrawer from "./components/DetailDrawer";
 import SkeletonGrid from "./components/SkeletonGrid";
 import StatsDashboard from "./components/StatsDashboard";
 import AuthModal from "./components/AuthModal";
-import ProfileModal from "./components/ProfileModal";
+import SettingsPage from "./components/SettingsPage";
 import ActivityFeed from "./components/ActivityFeed";
 import RatingManagerModal from "./components/RatingManagerModal";
 import FilterPanel from "./components/FilterPanel";
@@ -65,7 +65,6 @@ export default function Home() {
   const [isFeedLoading, setIsFeedLoading] = useState(false);
   const lastFeedFetchRef = useRef<number>(0);
 
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isRatingManagerOpen, setIsRatingManagerOpen] = useState(false);
   const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
   const [randomPick, setRandomPick] = useState<MediaItem | null>(null);
@@ -329,7 +328,6 @@ export default function Home() {
       selectedItem ||
       randomPick ||
       auth.isAuthModalOpen ||
-      isProfileModalOpen ||
       isRatingManagerOpen ||
       isPrivacyModalOpen
     ) {
@@ -344,7 +342,6 @@ export default function Home() {
     selectedItem,
     randomPick,
     auth.isAuthModalOpen,
-    isProfileModalOpen,
     isRatingManagerOpen,
     isPrivacyModalOpen,
   ]);
@@ -597,19 +594,12 @@ export default function Home() {
           auth.setIsInviteMode(false);
           auth.loadProfile();
           if (isNewUser) {
-            setIsProfileModalOpen(true);
+            setActiveTab("settings");
           }
           if (typeof window !== "undefined") {
             window.history.replaceState(null, "", window.location.pathname);
           }
         }}
-      />
-
-      <ProfileModal
-        isOpen={isProfileModalOpen}
-        userProfile={auth.userProfile}
-        onClose={() => setIsProfileModalOpen(false)}
-        onUpdated={auth.loadProfile}
       />
 
       <PrivacyModal
@@ -623,20 +613,23 @@ export default function Home() {
         canUndo={!!logsManager.previousLogsRef.current}
       />
 
-      {showFab && activeTab !== "stats" && activeTab !== "feed" && (
-        <button
-          onClick={() => explore.setShowFilters(true)}
-          className="fixed bottom-6 right-6 z-40 bg-accent text-accent-foreground font-bold px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 border border-accent/30 transition-all transform hover:scale-105 active:scale-95 animate-in fade-in zoom-in-90"
-        >
-          <SlidersHorizontal className="w-4 h-4" />
-          <span className="text-xs">Filtrele & Ara</span>
-          {explore.activeFilterCount > 0 && (
-            <span className="w-5 h-5 bg-background text-accent text-[10px] rounded-full flex items-center justify-center font-black ml-0.5">
-              {explore.activeFilterCount}
-            </span>
-          )}
-        </button>
-      )}
+      {showFab &&
+        activeTab !== "stats" &&
+        activeTab !== "settings" &&
+        activeTab !== "feed" && (
+          <button
+            onClick={() => explore.setShowFilters(true)}
+            className="fixed bottom-6 right-6 z-40 bg-accent text-accent-foreground font-bold px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 border border-accent/30 transition-all transform hover:scale-105 active:scale-95 animate-in fade-in zoom-in-90"
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+            <span className="text-xs">Filtrele & Ara</span>
+            {explore.activeFilterCount > 0 && (
+              <span className="w-5 h-5 bg-background text-accent text-[10px] rounded-full flex items-center justify-center font-black ml-0.5">
+                {explore.activeFilterCount}
+              </span>
+            )}
+          </button>
+        )}
 
       <RandomPickModal
         item={randomPick}
@@ -656,7 +649,7 @@ export default function Home() {
           userProfile={auth.userProfile}
           onLoginClick={() => auth.setIsAuthModalOpen(true)}
           onLogoutClick={auth.handleLogout}
-          onProfileClick={() => setIsProfileModalOpen(true)}
+          onProfileClick={() => setActiveTab("stats")}
           onPrivacyClick={() => setIsPrivacyModalOpen(true)}
           isHidden={isHeaderHidden}
         />
@@ -670,6 +663,11 @@ export default function Home() {
             onToggleCompleted={handleDrawerToggleCompleted}
             onToggleWatchlist={handleDrawerToggleWatchlist}
             userProfile={auth.userProfile}
+          />
+        ) : activeTab === "settings" ? (
+          <SettingsPage
+            userProfile={auth.userProfile}
+            onUpdated={auth.loadProfile}
           />
         ) : activeTab === "feed" ? (
           <ActivityFeed

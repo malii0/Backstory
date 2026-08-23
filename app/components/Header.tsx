@@ -2,7 +2,14 @@
 
 import React from "react";
 import Image from "next/image";
-import { LogOut, LogIn, BarChart3, Users, ShieldCheck } from "lucide-react";
+import {
+  LogOut,
+  LogIn,
+  User,
+  Users,
+  ShieldCheck,
+  Settings,
+} from "lucide-react";
 import { ActiveTab, UserProfile } from "@/lib/types";
 
 interface HeaderProps {
@@ -138,8 +145,19 @@ export default function Header({
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            <BarChart3 className="w-3.5 h-3.5" />
+            <User className="w-3.5 h-3.5" />
             Profil
+          </button>
+          <button
+            onClick={() => setActiveTab("settings")}
+            className={`px-3.5 sm:px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === "settings"
+                ? "bg-accent/10 border border-accent/30 text-accent shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Settings className="w-3.5 h-3.5" />
+            Ayarlar
           </button>
         </nav>
 
@@ -147,7 +165,7 @@ export default function Header({
           <div className="flex items-center gap-2">
             <button
               onClick={onProfileClick}
-              title="Profilini Düzenle"
+              title="Profilim"
               className="px-3 py-2 rounded-xl bg-card border border-border text-foreground hover:text-accent transition-colors flex items-center gap-2 text-xs font-semibold flex-shrink-0"
             >
               <span className="text-sm">{userProfile?.avatarUrl || "🎬"}</span>

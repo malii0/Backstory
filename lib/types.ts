@@ -123,7 +123,8 @@ export type ActiveTab =
   | "completed"
   | "watchlist"
   | "stats"
-  | "feed";
+  | "feed"
+  | "settings";
 
 export interface AIInsightItem {
   id: number;
