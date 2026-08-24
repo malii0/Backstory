@@ -298,3 +298,45 @@ export const fetchActivityFeed = async (
     updatedAt: parseUpdatedAt(row.updated_at),
   }));
 };
+
+// --- YENİ EKLENEN FONKSİYONLAR BAŞLANGIÇ ---
+export const fetchProfileByUsername = async (
+  username: string,
+): Promise<UserProfile | null> => {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("username", username)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  const profile = data as unknown as ProfileRow;
+
+  return {
+    id: profile.id,
+    username: profile.username,
+    displayName: profile.display_name || profile.username,
+    avatarUrl: profile.avatar_url || "🎬",
+  };
+};
+
+export const fetchPublicLogs = async (
+  userId: string,
+): Promise<Record<string, LogMetadata>> => {
+  const { data, error } = await supabase
+    .from("media_logs")
+    .select("*")
+    .eq("user_id", userId);
+
+  if (error) return {};
+
+  const logsRecord: Record<string, LogMetadata> = {};
+  const rows = (data || []) as MediaLogRow[];
+  rows.forEach((row) => {
+    logsRecord[row.key] = mapRowToLog(row);
+  });
+
+  return logsRecord;
+};
+// --- YENİ EKLENEN FONKSİYONLAR BİTİŞ ---

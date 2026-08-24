@@ -19,15 +19,17 @@ interface MediaCardProps {
   item: MediaItem;
   log?: LogMetadata;
   isNowPlaying?: boolean;
-  onSelect: (item: MediaItem) => void;
-  onToggleCompleted: (item: MediaItem) => void;
-  onToggleWatchlist: (item: MediaItem) => void;
+  readOnly?: boolean;
+  onSelect?: (item: MediaItem) => void;
+  onToggleCompleted?: (item: MediaItem) => void;
+  onToggleWatchlist?: (item: MediaItem) => void;
 }
 
 function MediaCardComponent({
   item,
   log,
   isNowPlaying,
+  readOnly = false,
   onSelect,
   onToggleCompleted,
   onToggleWatchlist,
@@ -45,13 +47,13 @@ function MediaCardComponent({
   const userRating = log?.rating ?? 0;
 
   const handleSelect = useCallback(() => {
-    onSelect(item);
+    if (onSelect) onSelect(item);
   }, [onSelect, item]);
 
   const handleCompleted = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      onToggleCompleted(item);
+      if (onToggleCompleted) onToggleCompleted(item);
     },
     [onToggleCompleted, item],
   );
@@ -59,7 +61,7 @@ function MediaCardComponent({
   const handleWatchlist = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      onToggleWatchlist(item);
+      if (onToggleWatchlist) onToggleWatchlist(item);
     },
     [onToggleWatchlist, item],
   );
@@ -143,41 +145,45 @@ function MediaCardComponent({
           </div>
         )}
 
-        <div className="absolute top-2 right-2 flex flex-col gap-1.5 opacity-100 [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100 transition-opacity z-20">
-          <button
-            onClick={handleCompleted}
-            style={
-              isCompleted
-                ? {
-                    backgroundColor: "var(--app-completed)",
-                    borderColor: "var(--app-completed)",
-                    color: "var(--app-completed-foreground)",
-                  }
-                : undefined
-            }
-            className={`p-2 rounded-xl backdrop-blur-md border transition-all ${
-              isCompleted
-                ? "font-bold shadow-md"
-                : "bg-background/80 border-border text-muted-foreground hover:text-foreground shadow-md"
-            }`}
-            title={isCompleted ? "İzlenenlerden Çıkar" : "İzlendi İşaretle"}
-          >
-            <Eye className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={handleWatchlist}
-            className={`p-2 rounded-xl backdrop-blur-md border transition-all ${
-              isWatchlist
-                ? "bg-accent border-accent text-accent-foreground font-bold shadow-md"
-                : "bg-background/80 border-border text-muted-foreground hover:text-foreground shadow-md"
-            }`}
-            title={
-              isWatchlist ? "İzleme Listesinden Çıkar" : "İzleme Listesine Ekle"
-            }
-          >
-            <Bookmark className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        {!readOnly && (
+          <div className="absolute top-2 right-2 flex flex-col gap-1.5 opacity-100 [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100 transition-opacity z-20">
+            <button
+              onClick={handleCompleted}
+              style={
+                isCompleted
+                  ? {
+                      backgroundColor: "var(--app-completed)",
+                      borderColor: "var(--app-completed)",
+                      color: "var(--app-completed-foreground)",
+                    }
+                  : undefined
+              }
+              className={`p-2 rounded-xl backdrop-blur-md border transition-all ${
+                isCompleted
+                  ? "font-bold shadow-md"
+                  : "bg-background/80 border-border text-muted-foreground hover:text-foreground shadow-md"
+              }`}
+              title={isCompleted ? "İzlenenlerden Çıkar" : "İzlendi İşaretle"}
+            >
+              <Eye className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={handleWatchlist}
+              className={`p-2 rounded-xl backdrop-blur-md border transition-all ${
+                isWatchlist
+                  ? "bg-accent border-accent text-accent-foreground font-bold shadow-md"
+                  : "bg-background/80 border-border text-muted-foreground hover:text-foreground shadow-md"
+              }`}
+              title={
+                isWatchlist
+                  ? "İzleme Listesinden Çıkar"
+                  : "İzleme Listesine Ekle"
+              }
+            >
+              <Bookmark className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         <div className="absolute bottom-2 left-2 flex items-center gap-1 z-10">
           {isCompleted && (
@@ -244,6 +250,7 @@ export default React.memo(MediaCardComponent, (prev, next) => {
     prev.item.recommendationSource === next.item.recommendationSource &&
     prev.item.matchScore === next.item.matchScore &&
     prev.isNowPlaying === next.isNowPlaying &&
+    prev.readOnly === next.readOnly &&
     prev.onSelect === next.onSelect &&
     prev.onToggleCompleted === next.onToggleCompleted &&
     prev.onToggleWatchlist === next.onToggleWatchlist &&
