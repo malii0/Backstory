@@ -50,7 +50,6 @@ import {
 } from "@/lib/types";
 import { getEffectiveWatchCount } from "@/lib/utils";
 import {
-  saveLogToSupabase,
   saveBulkLogsToSupabase,
   deleteBulkLogsFromSupabase,
   fetchActivityFeed,

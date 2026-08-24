@@ -28,6 +28,7 @@ interface StatsDashboardProps {
   onToggleWatchlist?: (item: MediaItem) => void;
   userId?: string;
   userProfile?: UserProfile | null;
+  isPublicView?: boolean;
 }
 
 export default function StatsDashboard({
@@ -38,6 +39,7 @@ export default function StatsDashboard({
   onToggleWatchlist,
   userId,
   userProfile,
+  isPublicView = false,
 }: StatsDashboardProps) {
   const stats = useMemo(() => {
     const logEntries = Object.values(logs);
@@ -210,24 +212,28 @@ export default function StatsDashboard({
           </div>
         </div>
 
-        <button
-          onClick={onOpenRatingManager}
-          className="bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm shrink-0"
-        >
-          <SlidersHorizontal className="w-4 h-4" />
-          <span>Yönetim</span>
-        </button>
+        {!isPublicView && (
+          <button
+            onClick={onOpenRatingManager}
+            className="bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm shrink-0"
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+            <span>Yönetim</span>
+          </button>
+        )}
       </div>
 
-      <AIRecommendationsSection
-        watchlist={stats.watchlistItems}
-        favorites={stats.favoriteItems}
-        logs={logs}
-        userId={userId}
-        onSelectItem={onSelectItem}
-        onToggleCompleted={onToggleCompleted}
-        onToggleWatchlist={onToggleWatchlist}
-      />
+      {!isPublicView && (
+        <AIRecommendationsSection
+          watchlist={stats.watchlistItems}
+          favorites={stats.favoriteItems}
+          logs={logs}
+          userId={userId}
+          onSelectItem={onSelectItem}
+          onToggleCompleted={onToggleCompleted}
+          onToggleWatchlist={onToggleWatchlist}
+        />
+      )}
 
       <div className="bg-gradient-to-r from-accent/15 via-card to-card border border-accent/30 p-6 rounded-3xl relative overflow-hidden shadow-2xl">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative z-10">

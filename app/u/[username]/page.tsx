@@ -2,13 +2,14 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Film, Tv, LayoutGrid, Bookmark } from "lucide-react";
+import { ArrowLeft, LayoutGrid, Bookmark } from "lucide-react";
 
 import { UserProfile, LogMetadata, MediaItem, MediaDetail } from "@/lib/types";
 import { fetchProfileByUsername, fetchPublicLogs } from "@/lib/db";
 import MediaCard from "@/app/components/MediaCard";
 import DetailDrawer from "@/app/components/DetailDrawer";
 import SkeletonGrid from "@/app/components/SkeletonGrid";
+import StatsDashboard from "@/app/components/StatsDashboard";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function PublicProfilePage() {
@@ -30,7 +31,6 @@ export default function PublicProfilePage() {
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
-  // Kendi profili tespiti ve kimlik doğrulama kontrolü
   useEffect(() => {
     if (auth.isAuthLoading) return;
 
@@ -47,9 +47,7 @@ export default function PublicProfilePage() {
     router,
   ]);
 
-  // Profil Verisi Getirme
   useEffect(() => {
-    // Yönlendirme gerçekleşecekse veya auth halen kontrol ediliyorsa veri çekme
     if (
       !username ||
       auth.isAuthLoading ||
@@ -136,7 +134,6 @@ export default function PublicProfilePage() {
     [logs],
   );
 
-  // Sayfa yönlendirilirken asla arayüzü veya başkasının verilerini render etme
   if (
     auth.isAuthLoading ||
     loading ||
@@ -168,74 +165,75 @@ export default function PublicProfilePage() {
   return (
     <main className="min-h-dvh bg-background text-foreground font-sans p-4 sm:p-6 md:p-8 relative pb-10">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center gap-4 border-b border-border/60 pb-4">
+        <div className="mb-4">
           <button
             onClick={() => router.back()}
-            className="p-2 bg-card hover:bg-muted rounded-xl border border-border text-muted-foreground transition-colors"
+            className="p-2 bg-card hover:bg-muted rounded-xl border border-border text-muted-foreground transition-colors inline-flex items-center gap-2"
           >
             <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-background border border-border rounded-xl flex items-center justify-center text-2xl shadow-sm shrink-0">
-              {profile.avatarUrl || "🎬"}
-            </div>
-            <div>
-              <h1 className="text-xl font-extrabold text-foreground leading-tight">
-                {profile.displayName}
-              </h1>
-              <p className="text-xs text-muted-foreground">
-                @{profile.username}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2">
-          <button
-            onClick={() => setActiveTab("completed")}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${
-              activeTab === "completed"
-                ? "bg-accent/10 border border-accent/30 text-accent shadow-sm"
-                : "bg-card border border-border text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <LayoutGrid className="w-4 h-4" />
-            Bitirdikleri ({totalCompleted})
-          </button>
-          <button
-            onClick={() => setActiveTab("watchlist")}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${
-              activeTab === "watchlist"
-                ? "bg-accent/10 border border-accent/30 text-accent shadow-sm"
-                : "bg-card border border-border text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Bookmark className="w-4 h-4" />
-            İzleyecekleri ({totalWatchlist})
+            <span className="text-sm font-semibold">Geri Dön</span>
           </button>
         </div>
 
-        {displayedItems.length === 0 ? (
-          <div className="text-center py-16 text-muted-foreground text-sm border border-dashed border-border rounded-3xl">
-            Bu liste şu an boş.
+        <StatsDashboard
+          logs={logs}
+          userProfile={profile}
+          isPublicView={true}
+          onSelectItem={(i) => setSelectedItem(i)}
+        />
+
+        <div className="mt-8 pt-6 border-t border-border/60">
+          <h3 className="text-lg font-bold text-foreground mb-4">
+            Tüm İçerikler
+          </h3>
+
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-4">
+            <button
+              onClick={() => setActiveTab("completed")}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${
+                activeTab === "completed"
+                  ? "bg-accent/10 border border-accent/30 text-accent shadow-sm"
+                  : "bg-card border border-border text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+              Bitirdikleri ({totalCompleted})
+            </button>
+            <button
+              onClick={() => setActiveTab("watchlist")}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${
+                activeTab === "watchlist"
+                  ? "bg-accent/10 border border-accent/30 text-accent shadow-sm"
+                  : "bg-card border border-border text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Bookmark className="w-4 h-4" />
+              İzleyecekleri ({totalWatchlist})
+            </button>
           </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-            {displayedItems.map((item) => {
-              const key = `${item.media_type}_${item.id}`;
-              const log = logs[key];
-              return (
-                <MediaCard
-                  key={key}
-                  item={item}
-                  log={log}
-                  readOnly={true}
-                  onSelect={(i) => setSelectedItem(i)}
-                />
-              );
-            })}
-          </div>
-        )}
+
+          {displayedItems.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground text-sm border border-dashed border-border rounded-3xl">
+              Bu liste şu an boş.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+              {displayedItems.map((item) => {
+                const key = `${item.media_type}_${item.id}`;
+                const log = logs[key];
+                return (
+                  <MediaCard
+                    key={key}
+                    item={item}
+                    log={log}
+                    readOnly={true}
+                    onSelect={(i) => setSelectedItem(i)}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         {selectedItem && (
           <DetailDrawer
