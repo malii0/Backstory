@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
 import Image from "next/image";
 import { LogMetadata, MediaItem, UserProfile } from "@/lib/types";
 import { getEffectiveWatchCount } from "@/lib/utils";
-import { GENRES_LIST } from "@/lib/constants";
+import { GENRES_LIST, STATS_TIER_THRESHOLDS } from "@/lib/constants";
 import AIRecommendationsSection from "@/app/components/AIRecommendationsSection";
 import {
   Star,
@@ -327,99 +327,112 @@ export default function StatsDashboard({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-        <div className="md:col-span-7 bg-card/80 border border-border/80 p-6 rounded-3xl space-y-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-foreground font-bold text-sm">
-              <BarChart3 className="w-4 h-4 text-accent" />
-              <h3>Puan Dağılım Grafiğiniz</h3>
-            </div>
-            <span className="text-[11px] font-bold text-muted-foreground">
-              1 - 10 Skalası
-            </span>
-          </div>
-
-          <div className="h-44 flex items-end justify-between gap-1.5 pt-4 pb-2 border-b border-border/80">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((star) => {
-              const count = stats.ratingDistribution[star] || 0;
-              const heightPercent =
-                count > 0
-                  ? Math.max((count / stats.maxRatingCount) * 100, 8)
-                  : 4;
-
-              return (
-                <div
-                  key={star}
-                  className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end group"
-                >
-                  <span className="text-[10px] font-bold text-muted-foreground group-hover:text-accent transition-colors">
-                    {count > 0 ? count : ""}
-                  </span>
-                  <div className="w-full bg-background rounded-t-lg overflow-hidden flex items-end h-full p-0.5">
-                    <div
-                      style={{ height: `${heightPercent}%` }}
-                      className={`w-full rounded-md transition-all duration-500 ${
-                        count > 0
-                          ? star >= 8
-                            ? "bg-accent"
-                            : star >= 5
-                              ? "bg-accent/70"
-                              : "bg-muted-foreground/40"
-                          : "bg-muted"
-                      }`}
-                    />
-                  </div>
-                  <span className="text-[11px] font-bold text-muted-foreground group-hover:text-foreground transition-colors">
-                    {star}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          <p className="text-[11px] text-muted-foreground text-center">
-            En çok{" "}
-            <span className="text-accent font-bold">
-              {stats.mostFrequentRating}
-            </span>{" "}
-            puanını vermeyi tercih etmişsin.
+      {stats.completedLogs.length < STATS_TIER_THRESHOLDS.BASIC ? (
+        <div className="bg-card/80 border border-border/80 p-8 rounded-3xl text-center space-y-3 shadow-sm">
+          <BarChart3 className="w-8 h-8 text-muted-foreground/50 mx-auto" />
+          <h3 className="text-sm font-bold text-foreground">
+            Daha Fazla Veriye İhtiyacımız Var
+          </h3>
+          <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+            Henüz yeterli veri yok — birkaç film/dizi daha izleyip puanladıkça
+            burada kişisel grafiklerin belirecek.
           </p>
         </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+          <div className="md:col-span-7 bg-card/80 border border-border/80 p-6 rounded-3xl space-y-4 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-foreground font-bold text-sm">
+                <BarChart3 className="w-4 h-4 text-accent" />
+                <h3>Puan Dağılım Grafiğiniz</h3>
+              </div>
+              <span className="text-[11px] font-bold text-muted-foreground">
+                1 - 10 Skalası
+              </span>
+            </div>
 
-        <div className="md:col-span-5 bg-card/80 border border-border/80 p-6 rounded-3xl space-y-4">
-          <div className="flex items-center gap-2 text-foreground font-bold text-sm">
-            <PieChart className="w-4 h-4 text-accent" />
-            <h3>Favori Tür Dağılımı</h3>
+            <div className="h-44 flex items-end justify-between gap-1.5 pt-4 pb-2 border-b border-border/80">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((star) => {
+                const count = stats.ratingDistribution[star] || 0;
+                const heightPercent =
+                  count > 0
+                    ? Math.max((count / stats.maxRatingCount) * 100, 8)
+                    : 4;
+
+                return (
+                  <div
+                    key={star}
+                    className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end group"
+                  >
+                    <span className="text-[10px] font-bold text-muted-foreground group-hover:text-accent transition-colors">
+                      {count > 0 ? count : ""}
+                    </span>
+                    <div className="w-full bg-background rounded-t-lg overflow-hidden flex items-end h-full p-0.5">
+                      <div
+                        style={{ height: `${heightPercent}%` }}
+                        className={`w-full rounded-md transition-all duration-500 ${
+                          count > 0
+                            ? star >= 8
+                              ? "bg-accent"
+                              : star >= 5
+                                ? "bg-accent/70"
+                                : "bg-muted-foreground/40"
+                            : "bg-muted"
+                        }`}
+                      />
+                    </div>
+                    <span className="text-[11px] font-bold text-muted-foreground group-hover:text-foreground transition-colors">
+                      {star}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <p className="text-[11px] text-muted-foreground text-center">
+              En çok{" "}
+              <span className="text-accent font-bold">
+                {stats.mostFrequentRating}
+              </span>{" "}
+              puanını vermeyi tercih etmişsin.
+            </p>
           </div>
 
-          {stats.topGenres.length === 0 ? (
-            <p className="text-xs text-muted-foreground py-8 text-center">
-              Henüz tür verisi oluşmadı.
-            </p>
-          ) : (
-            <div className="space-y-3 pt-1">
-              {stats.topGenres.map((g) => (
-                <div key={g.name} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-foreground font-medium">
-                      {g.name}
-                    </span>
-                    <span className="text-accent font-bold">
-                      {g.count} içerik (%{g.percentage})
-                    </span>
-                  </div>
-                  <div className="w-full h-2 bg-background rounded-full overflow-hidden border border-border/80">
-                    <div
-                      style={{ width: `${g.percentage}%` }}
-                      className="h-full bg-accent rounded-full transition-all duration-500"
-                    />
-                  </div>
-                </div>
-              ))}
+          <div className="md:col-span-5 bg-card/80 border border-border/80 p-6 rounded-3xl space-y-4">
+            <div className="flex items-center gap-2 text-foreground font-bold text-sm">
+              <PieChart className="w-4 h-4 text-accent" />
+              <h3>Favori Tür Dağılımı</h3>
             </div>
-          )}
+
+            {stats.topGenres.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-8 text-center">
+                Henüz tür verisi oluşmadı.
+              </p>
+            ) : (
+              <div className="space-y-3 pt-1">
+                {stats.topGenres.map((g) => (
+                  <div key={g.name} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-foreground font-medium">
+                        {g.name}
+                      </span>
+                      <span className="text-accent font-bold">
+                        {g.count} içerik (%{g.percentage})
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-background rounded-full overflow-hidden border border-border/80">
+                      <div
+                        style={{ width: `${g.percentage}%` }}
+                        className="h-full bg-accent rounded-full transition-all duration-500"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
         {stats.rewatchChampion && stats.rewatchChampion.itemData && (

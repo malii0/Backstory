@@ -20,10 +20,6 @@ import {
   Clapperboard,
   Calendar,
   EyeOff,
-  CheckSquare,
-  Square,
-  Trash2,
-  ListChecks,
 } from "lucide-react";
 
 import Header from "./components/Header";
@@ -60,15 +56,12 @@ import { useTmdbExplore, DEFAULT_YEAR_RANGE } from "@/hooks/useTmdbExplore";
 import { useRecommendations } from "@/hooks/useRecommendations";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
-// Next.js mimarisinde useSearchParams kullanan bileşenlerin Suspense ile sarılması gerekir.
-// Tüm page'i sarmak yerine URL okuma işlemini bu küçük bileşene izole ediyoruz.
 function TabParamHandler({ onTabMatch }: { onTabMatch: () => void }) {
   const searchParams = useSearchParams();
 
   useEffect(() => {
     if (searchParams.get("tab") === "profile") {
       onTabMatch();
-      // Yönlendirme bittikten sonra URL'deki ?tab=profile kısmını temizle (sayfayı yenilemeden)
       window.history.replaceState(null, "", window.location.pathname);
     }
   }, [searchParams, onTabMatch]);
@@ -91,9 +84,6 @@ export default function Home() {
   const [randomPick, setRandomPick] = useState<MediaItem | null>(null);
 
   const [hideLoggedItems, setHideLoggedItems] = useState(false);
-
-  const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
 
   const [toasts, setToasts] = useState<ToastItemData[]>([]);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -194,11 +184,6 @@ export default function Home() {
       isHydratingRef.current = false;
     };
   }, [auth.isAuthenticated, logsManager.isLogsLoading]);
-
-  useEffect(() => {
-    setIsSelectionMode(false);
-    setSelectedKeys(new Set());
-  }, [activeTab]);
 
   const userWatchedIds = useMemo(() => {
     const set = new Set<string>();
@@ -613,56 +598,6 @@ export default function Home() {
     setRandomPick(displayedItems[randomIndex]);
   };
 
-  const toggleSelection = useCallback((key: string) => {
-    setSelectedKeys((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }, []);
-
-  const handleBulkDelete = async () => {
-    if (selectedKeys.size === 0) return;
-    if (
-      !window.confirm(
-        `${selectedKeys.size} seçili içeriği silmek istediğinize emin misiniz?`,
-      )
-    )
-      return;
-
-    const keysArray = Array.from(selectedKeys);
-    const previousState = { ...logsManager.logs };
-    logsManager.previousLogsRef.current = previousState;
-
-    const newLogs = { ...previousState };
-    keysArray.forEach((k) => delete newLogs[k]);
-
-    logsManager.setLogs(newLogs);
-    setSelectedKeys(new Set());
-    setIsSelectionMode(false);
-    showToast(`${keysArray.length} içerik listeden silindi.`);
-
-    const success = await deleteBulkLogsFromSupabase(keysArray);
-    if (!success) {
-      logsManager.setLogs(previousState);
-      logsManager.previousLogsRef.current = null;
-      showToast(
-        "Bulut senkronizasyonu başarısız oldu. Değişiklik geri alındı.",
-      );
-    }
-  };
-
-  const handleBulkRate = (rating: number) => {
-    if (selectedKeys.size === 0) return;
-    const itemsToUpdate = displayedItems.filter((item) =>
-      selectedKeys.has(logsManager.getItemKey(item)),
-    );
-    logsManager.bulkUpdateRating(itemsToUpdate, rating);
-    setSelectedKeys(new Set());
-    setIsSelectionMode(false);
-  };
-
   return (
     <main className="min-h-dvh bg-background text-foreground font-sans p-4 sm:p-6 md:p-8 lg:p-10 relative pb-[calc(1rem+env(safe-area-inset-bottom))]">
       <Suspense fallback={null}>
@@ -1031,38 +966,14 @@ export default function Home() {
                     </button>
                   )}
 
-                {activeTab === "watchlist" &&
-                  displayedItems.length > 0 &&
-                  !isSelectionMode && (
-                    <button
-                      onClick={handlePickRandomFromWatchlist}
-                      className="bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
-                    >
-                      <Dices className="w-4 h-4" /> Ne İzlesem?
-                    </button>
-                  )}
-
-                {(activeTab === "completed" || activeTab === "watchlist") &&
-                  displayedItems.length > 0 && (
-                    <button
-                      onClick={() => {
-                        setIsSelectionMode(!isSelectionMode);
-                        if (isSelectionMode) setSelectedKeys(new Set());
-                      }}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm ${
-                        isSelectionMode
-                          ? "bg-accent text-accent-foreground"
-                          : "bg-card border border-border text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      {isSelectionMode ? (
-                        <X className="w-4 h-4" />
-                      ) : (
-                        <ListChecks className="w-4 h-4" />
-                      )}
-                      {isSelectionMode ? "İptal" : "Seç"}
-                    </button>
-                  )}
+                {activeTab === "watchlist" && displayedItems.length > 0 && (
+                  <button
+                    onClick={handlePickRandomFromWatchlist}
+                    className="bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Dices className="w-4 h-4" /> Ne İzlesem?
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1135,45 +1046,18 @@ export default function Home() {
                     const log = logsManager.logs[key];
 
                     return (
-                      <div key={key} className="relative">
-                        <div
-                          className={
-                            isSelectionMode
-                              ? "opacity-90 transition-opacity"
-                              : ""
-                          }
-                        >
-                          <MediaCard
-                            item={item}
-                            log={log}
-                            isNowPlaying={
-                              item.media_type === "movie" &&
-                              explore.nowPlayingIds.has(item.id)
-                            }
-                            onSelect={handleSelectItem}
-                            onToggleCompleted={handleCardToggleCompleted}
-                            onToggleWatchlist={handleCardToggleWatchlist}
-                          />
-                        </div>
-                        {isSelectionMode && (
-                          <div
-                            className={`absolute inset-0 z-20 cursor-pointer rounded-2xl border-2 transition-all ${
-                              selectedKeys.has(key)
-                                ? "border-accent bg-accent/10"
-                                : "border-transparent hover:border-accent/50"
-                            }`}
-                            onClick={() => toggleSelection(key)}
-                          >
-                            <div className="absolute top-2 right-2 bg-background/90 backdrop-blur-md rounded-lg p-1 shadow-sm">
-                              {selectedKeys.has(key) ? (
-                                <CheckSquare className="w-5 h-5 text-accent" />
-                              ) : (
-                                <Square className="w-5 h-5 text-muted-foreground" />
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                      <MediaCard
+                        key={key}
+                        item={item}
+                        log={log}
+                        isNowPlaying={
+                          item.media_type === "movie" &&
+                          explore.nowPlayingIds.has(item.id)
+                        }
+                        onSelect={handleSelectItem}
+                        onToggleCompleted={handleCardToggleCompleted}
+                        onToggleWatchlist={handleCardToggleWatchlist}
+                      />
                     );
                   })}
                 </div>
@@ -1243,42 +1127,6 @@ export default function Home() {
           onSelectItem={handleSelectItem}
         />
       </div>
-
-      {isSelectionMode && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 bg-card border border-border shadow-2xl rounded-2xl p-2.5 flex items-center gap-3 w-max max-w-[95vw] animate-in slide-in-from-bottom-5">
-          <span className="text-xs font-bold text-accent whitespace-nowrap bg-accent/10 px-2.5 py-1.5 rounded-lg border border-accent/20">
-            {selectedKeys.size} Seçildi
-          </span>
-
-          <div className="h-6 w-px bg-border mx-0.5" />
-
-          <select
-            onChange={(e) => {
-              const val = Number(e.target.value);
-              if (!isNaN(val) && val > 0) handleBulkRate(val);
-              e.target.value = "";
-            }}
-            defaultValue=""
-            className="bg-background border border-border text-foreground text-xs rounded-xl px-2 py-1.5 focus:outline-none focus:border-accent cursor-pointer"
-          >
-            <option value="" disabled>
-              Puanla...
-            </option>
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((r) => (
-              <option key={r} value={r}>
-                {r} Puan
-              </option>
-            ))}
-          </select>
-
-          <button
-            onClick={handleBulkDelete}
-            className="text-xs font-bold text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1.5"
-          >
-            <Trash2 className="w-3.5 h-3.5" /> Sil
-          </button>
-        </div>
-      )}
     </main>
   );
 }
