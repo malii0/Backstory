@@ -9,11 +9,13 @@ import { fetchProfileByUsername, fetchPublicLogs } from "@/lib/db";
 import MediaCard from "@/app/components/MediaCard";
 import DetailDrawer from "@/app/components/DetailDrawer";
 import SkeletonGrid from "@/app/components/SkeletonGrid";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function PublicProfilePage() {
   const params = useParams();
   const router = useRouter();
   const username = params.username as string;
+  const auth = useAuth();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [logs, setLogs] = useState<Record<string, LogMetadata>>({});
@@ -28,8 +30,35 @@ export default function PublicProfilePage() {
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
+  // Kendi profili tespiti ve kimlik doğrulama kontrolü
   useEffect(() => {
-    if (!username) return;
+    if (auth.isAuthLoading) return;
+
+    if (!auth.isAuthenticated) {
+      router.push("/");
+    } else if (auth.userProfile?.username === username) {
+      router.push("/?tab=profile");
+    }
+  }, [
+    auth.isAuthLoading,
+    auth.isAuthenticated,
+    auth.userProfile,
+    username,
+    router,
+  ]);
+
+  // Profil Verisi Getirme
+  useEffect(() => {
+    // Yönlendirme gerçekleşecekse veya auth halen kontrol ediliyorsa veri çekme
+    if (
+      !username ||
+      auth.isAuthLoading ||
+      !auth.isAuthenticated ||
+      auth.userProfile?.username === username
+    ) {
+      return;
+    }
+
     const loadData = async () => {
       setLoading(true);
       const p = await fetchProfileByUsername(username);
@@ -43,8 +72,9 @@ export default function PublicProfilePage() {
       setLogs(l);
       setLoading(false);
     };
+
     loadData();
-  }, [username]);
+  }, [username, auth.isAuthLoading, auth.isAuthenticated, auth.userProfile]);
 
   const fetchDetails = useCallback(async () => {
     if (!selectedItem) {
@@ -106,7 +136,13 @@ export default function PublicProfilePage() {
     [logs],
   );
 
-  if (loading) {
+  // Sayfa yönlendirilirken asla arayüzü veya başkasının verilerini render etme
+  if (
+    auth.isAuthLoading ||
+    loading ||
+    !auth.isAuthenticated ||
+    auth.userProfile?.username === username
+  ) {
     return (
       <main className="min-h-dvh bg-background p-6">
         <SkeletonGrid />
