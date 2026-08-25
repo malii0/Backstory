@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { UserProfile } from "@/lib/types";
 import { updateUserProfile } from "@/lib/db";
 import { useTheme } from "@/hooks/useTheme";
@@ -13,6 +13,7 @@ import {
   KeyRound,
   Mail,
   Monitor,
+  User as UserIcon,
 } from "lucide-react";
 
 interface SettingsPageProps {
@@ -42,6 +43,7 @@ export default function SettingsPage({
   );
   const [avatarUrl, setAvatarUrl] = useState(userProfile?.avatarUrl || "🎬");
   const [loading, setLoading] = useState(false);
+  const [updateSuccess, setUpdateSuccess] = useState(false);
 
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordMsg, setPasswordMsg] = useState<{
@@ -62,12 +64,25 @@ export default function SettingsPage({
     setPasswordMsg(null);
   }
 
+  useEffect(() => {
+    if (updateSuccess) {
+      const timer = setTimeout(() => {
+        setUpdateSuccess(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [updateSuccess]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setUpdateSuccess(false);
+    
     const success = await updateUserProfile(displayName, avatarUrl);
     setLoading(false);
+    
     if (success) {
+      setUpdateSuccess(true);
       await onUpdated();
     }
   };
@@ -118,91 +133,102 @@ export default function SettingsPage({
         </p>
       </div>
 
-      <div className="bg-card/80 border border-border/80 p-5 sm:p-8 rounded-3xl space-y-6 shadow-sm">
-        <div className="p-4 sm:p-6 rounded-2xl bg-background/60 border border-border space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <span className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Sun className="w-4 h-4 text-accent" /> Tema Modu
-            </span>
-            <div className="flex items-center gap-1 bg-card p-1 rounded-xl border border-border">
-              <button
-                type="button"
-                onClick={() => updateMode("dark")}
-                className={`p-2 rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
-                  mode === "dark"
-                    ? "bg-muted text-accent font-bold"
-                    : "text-muted-foreground"
-                }`}
-              >
-                <Moon className="w-3.5 h-3.5" /> Koyu
-              </button>
-              <button
-                type="button"
-                onClick={() => updateMode("light")}
-                className={`p-2 rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
-                  mode === "light"
-                    ? "bg-muted text-accent font-bold"
-                    : "text-muted-foreground"
-                }`}
-              >
-                <Sun className="w-3.5 h-3.5" /> Aydınlık
-              </button>
-              <button
-                type="button"
-                onClick={() => updateMode("system")}
-                className={`p-2 rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
-                  mode === "system"
-                    ? "bg-muted text-accent font-bold"
-                    : "text-muted-foreground"
-                }`}
-              >
-                <Monitor className="w-3.5 h-3.5" /> Sistem
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-3 pt-2 border-t border-border/60">
-            <span className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Palette className="w-4 h-4 text-accent" /> Ana Vurgu Rengi
-            </span>
-            <div className="flex flex-wrap items-center gap-3">
-              {ACCENT_COLORS.map((col) => {
-                const isActive =
-                  accent.toLowerCase() === col.value.toLowerCase();
-                return (
-                  <button
-                    key={col.id}
-                    type="button"
-                    onClick={() => updateAccent(col.value)}
-                    title={col.name}
-                    className={`w-9 h-9 rounded-full transition-all flex items-center justify-center border cursor-pointer ${
-                      isActive
-                        ? "ring-2 ring-foreground scale-110 border-transparent"
-                        : "border-border/40"
-                    }`}
-                    style={{ backgroundColor: col.value }}
-                  >
-                    {isActive && (
-                      <Check className="w-4 h-4 text-white stroke-[3]" />
-                    )}
-                  </button>
-                );
-              })}
-
-              <label className="relative w-9 h-9 rounded-full overflow-hidden border-2 border-dashed border-border cursor-pointer flex items-center justify-center text-muted-foreground text-sm font-bold hover:border-foreground transition-colors">
-                +
-                <input
-                  type="color"
-                  value={accent}
-                  onChange={(e) => updateAccent(e.target.value)}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                />
-              </label>
-            </div>
+      {/* 1. Tema Kartı */}
+      <div className="bg-card/80 border border-border/80 p-5 sm:p-6 rounded-3xl space-y-5 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <span className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Sun className="w-4 h-4 text-accent" /> Tema Modu
+          </span>
+          <div className="flex items-center gap-1 bg-background/60 p-1 rounded-xl border border-border">
+            <button
+              type="button"
+              onClick={() => updateMode("dark")}
+              className={`p-2 rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+                mode === "dark"
+                  ? "bg-muted text-accent font-bold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Moon className="w-3.5 h-3.5" /> Koyu
+            </button>
+            <button
+              type="button"
+              onClick={() => updateMode("light")}
+              className={`p-2 rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+                mode === "light"
+                  ? "bg-muted text-accent font-bold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Sun className="w-3.5 h-3.5" /> Aydınlık
+            </button>
+            <button
+              type="button"
+              onClick={() => updateMode("system")}
+              className={`p-2 rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+                mode === "system"
+                  ? "bg-muted text-accent font-bold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Monitor className="w-3.5 h-3.5" /> Sistem
+            </button>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="space-y-3 pt-4 border-t border-border/60">
+          <span className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Palette className="w-4 h-4 text-accent" /> Ana Vurgu Rengi
+          </span>
+          <div className="flex flex-wrap items-center gap-3">
+            {ACCENT_COLORS.map((col) => {
+              const isActive =
+                accent.toLowerCase() === col.value.toLowerCase();
+              return (
+                <button
+                  key={col.id}
+                  type="button"
+                  onClick={() => updateAccent(col.value)}
+                  title={col.name}
+                  className={`w-9 h-9 rounded-full transition-all flex items-center justify-center border cursor-pointer ${
+                    isActive
+                      ? "ring-2 ring-foreground scale-110 border-transparent"
+                      : "border-border/40 hover:scale-105"
+                  }`}
+                  style={{ backgroundColor: col.value }}
+                >
+                  {isActive && (
+                    <Check className="w-4 h-4 text-white stroke-[3]" />
+                  )}
+                </button>
+              );
+            })}
+
+            <label className="relative w-9 h-9 rounded-full overflow-hidden border-2 border-dashed border-border cursor-pointer flex items-center justify-center text-muted-foreground text-sm font-bold hover:border-foreground transition-colors">
+              +
+              <input
+                type="color"
+                value={accent}
+                onChange={(e) => updateAccent(e.target.value)}
+                className="absolute inset-0 opacity-0 cursor-pointer"
+              />
+            </label>
+          </div>
+        </div>
+        
+        <p className="text-[10px] text-muted-foreground/60 italic text-right pt-2">
+          Değişiklikler anında uygulanır.
+        </p>
+      </div>
+
+      {/* 2. Profil Bilgileri Kartı */}
+      <div className="bg-card/80 border border-border/80 p-5 sm:p-6 rounded-3xl shadow-sm">
+        <div className="flex items-center gap-2 text-foreground font-semibold mb-5">
+          <UserIcon className="w-4 h-4 text-accent" />
+          <h3>Profil Bilgileri</h3>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-3">
             <label className="block text-sm font-medium text-foreground">
               Avatar (Emoji)
@@ -222,7 +248,7 @@ export default function SettingsPage({
                   value={avatarUrl}
                   onChange={(e) => setAvatarUrl(e.target.value)}
                   placeholder="Emoji yaz..."
-                  className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground placeholder-muted-foreground focus:outline-none transition"
+                  className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-accent transition"
                 />
               </div>
             </div>
@@ -257,65 +283,74 @@ export default function SettingsPage({
               required
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground focus:outline-none transition"
+              className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:border-accent transition"
               placeholder="Örn: Mali"
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 font-bold rounded-xl text-sm transition flex items-center justify-center gap-2 disabled:opacity-50 shadow-md cursor-pointer"
-            style={{
-              backgroundColor: accent,
-              color: "var(--app-accent-foreground)",
-            }}
-          >
-            {loading ? (
-              "Kaydediliyor..."
-            ) : (
-              <>
-                <Check className="w-5 h-5" /> Değişiklikleri Kaydet
-              </>
+          <div className="pt-2">
+            {updateSuccess && (
+              <div className="mb-3 p-3 rounded-xl text-xs text-emerald-400 bg-emerald-950/50 border border-emerald-900/50 text-center animate-in fade-in duration-300">
+                Profiliniz başarıyla güncellendi.
+              </div>
             )}
-          </button>
-        </form>
-
-        <div className="pt-5 border-t border-border space-y-4">
-          <div className="flex items-center gap-2 text-foreground font-semibold">
-            <KeyRound className="w-4 h-4 text-accent" />
-            <h3>Şifre İşlemleri</h3>
-          </div>
-
-          <p className="text-xs text-muted-foreground">
-            Şifrenizi değiştirmek için kayıtlı e-posta adresinize bir sıfırlama
-            bağlantısı gönderebilirsiniz.
-          </p>
-
-          {passwordMsg && (
-            <div
-              className={`p-3 rounded-xl text-xs border ${
-                passwordMsg.isError
-                  ? "bg-red-950/50 text-red-400 border-red-900/50"
-                  : "bg-emerald-950/50 text-emerald-400 border-emerald-900/50"
-              }`}
+            
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 font-bold rounded-xl text-sm transition flex items-center justify-center gap-2 disabled:opacity-50 shadow-md cursor-pointer"
+              style={{
+                backgroundColor: accent,
+                color: "var(--app-accent-foreground)",
+              }}
             >
-              {passwordMsg.text}
-            </div>
-          )}
+              {loading ? (
+                "Kaydediliyor..."
+              ) : (
+                <>
+                  <Check className="w-5 h-5" /> Değişiklikleri Kaydet
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
 
-          <button
-            type="button"
-            onClick={handleSendResetEmail}
-            disabled={passwordLoading}
-            className="w-full sm:w-auto py-2.5 px-4 rounded-xl border border-border bg-background hover:bg-muted text-foreground text-sm font-medium transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-          >
-            <Mail className="w-4 h-4 text-accent" />
-            {passwordLoading
-              ? "E-posta Gönderiliyor..."
-              : "Şifre Değiştirme Maili Gönder"}
-          </button>
+      {/* 3. Şifre İşlemleri Kartı */}
+      <div className="bg-card/80 border border-border/80 p-5 sm:p-6 rounded-3xl space-y-4 shadow-sm">
+        <div className="flex items-center gap-2 text-foreground font-semibold">
+          <KeyRound className="w-4 h-4 text-accent" />
+          <h3>Şifre İşlemleri</h3>
         </div>
+
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Şifrenizi değiştirmek için kayıtlı e-posta adresinize bir sıfırlama
+          bağlantısı gönderebilirsiniz.
+        </p>
+
+        {passwordMsg && (
+          <div
+            className={`p-3 rounded-xl text-xs border animate-in fade-in duration-300 ${
+              passwordMsg.isError
+                ? "bg-red-950/50 text-red-400 border-red-900/50"
+                : "bg-emerald-950/50 text-emerald-400 border-emerald-900/50"
+            }`}
+          >
+            {passwordMsg.text}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={handleSendResetEmail}
+          disabled={passwordLoading}
+          className="w-full sm:w-auto py-2.5 px-4 rounded-xl border border-border bg-background hover:bg-muted text-foreground text-sm font-medium transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+        >
+          <Mail className="w-4 h-4 text-accent" />
+          {passwordLoading
+            ? "E-posta Gönderiliyor..."
+            : "Şifre Değiştirme Maili Gönder"}
+        </button>
       </div>
     </div>
   );
