@@ -19,7 +19,7 @@ Most existing tracking apps were either full of ads or didn't quite give me the 
 ## Access
 Signups are currently closed to the public, it's invite only for now. Reach out if you'd like an account.
 - Website: [malionurlucan.me](https://malionurlucan.me)
-- GitHub: [@malionurlucan](https://github.com/malionurlucan)
+- GitHub: [@malii0](https://github.com/malii0)
 ## Note
 Movie and TV data is provided by TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.
 ## License
