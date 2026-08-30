@@ -39,11 +39,7 @@ const nextConfig = {
     ];
   },
   images: {
-    minimumCacheTTL: 2678400,
-    formats: ["image/webp"],
-    qualities: [75],
-    deviceSizes: [320, 420, 768, 1024, 1200],
-    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    unoptimized: true, // Vercel'in resimleri dönüştürmesini (transformations) tamamen kapatır
     remotePatterns: [
       {
         protocol: "https",
