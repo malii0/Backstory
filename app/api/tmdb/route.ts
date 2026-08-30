@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { redis } from "@/lib/redis";
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
@@ -67,20 +68,42 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // 1. Hedef URL ve Önbellek Anahtarını (Cache Key) Oluşturma
+  const targetUrl = new URL(`${TMDB_BASE_URL}${endpoint}`);
+  targetUrl.searchParams.append("api_key", TMDB_API_KEY);
+  targetUrl.searchParams.append("language", "tr-TR");
+
+  const cacheParams = new URLSearchParams();
+  cacheParams.append("language", "tr-TR");
+
+  searchParams.forEach((value, key) => {
+    if (key !== "endpoint" && key !== "api_key") {
+      targetUrl.searchParams.append(key, value);
+      cacheParams.append(key, value);
+    }
+  });
+
+  const cacheKey = `tmdb:${endpoint}?${cacheParams.toString()}`;
+
+  // 2. Redis Önbellek Kontrolü
   try {
-    const targetUrl = new URL(`${TMDB_BASE_URL}${endpoint}`);
-    targetUrl.searchParams.append("api_key", TMDB_API_KEY);
-    targetUrl.searchParams.append("language", "tr-TR");
+    const cachedData = await redis.get(cacheKey);
+    if (cachedData) {
+      return NextResponse.json(JSON.parse(cachedData), {
+        headers: {
+          "X-Cache": "HIT",
+          "Cache-Control":
+            "public, s-maxage=86400, stale-while-revalidate=43200",
+        },
+      });
+    }
+  } catch (err) {
+    console.warn("Redis okuma hatasi:", err);
+  }
 
-    searchParams.forEach((value, key) => {
-      if (key !== "endpoint" && key !== "api_key") {
-        targetUrl.searchParams.append(key, value);
-      }
-    });
-
-    const res = await fetch(targetUrl.toString(), {
-      next: { revalidate: 3600 },
-    } as RequestInit & { next?: { revalidate?: number } });
+  // 3. TMDB API İsteği
+  try {
+    const res = await fetch(targetUrl.toString());
 
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
@@ -91,8 +114,17 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await res.json();
+
+    // 4. Redis'e 24 Saatlik (86400 sn) Yazma
+    try {
+      await redis.set(cacheKey, JSON.stringify(data), "EX", 86400);
+    } catch (err) {
+      console.warn("Redis yazma hatasi:", err);
+    }
+
     return NextResponse.json(data, {
       headers: {
+        "X-Cache": "MISS",
         "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=43200",
       },
     });
