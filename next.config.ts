@@ -31,17 +31,9 @@ const nextConfig = {
             value: "max-age=31536000; includeSubDomains; preload",
           },
           {
-            key: "Cross-Origin-Opener-Policy",
-            value: "same-origin",
-          },
-          {
-            key: "Cross-Origin-Resource-Policy",
-            value: "same-origin",
-          },
-          {
             key: "Content-Security-Policy",
             value:
-              "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https://image.tmdb.org data: blob:; font-src 'self' data:; frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self';",
+            "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://va.vercel-scripts.com; style-src 'self' 'unsafe-inline'; img-src 'self' https://image.tmdb.org data: blob:; font-src 'self' data:; frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.themoviedb.org https://va.vercel-scripts.com https://vitals.vercel-insights.com; object-src 'none'; base-uri 'self'; form-action 'self';",
           },
         ],
       },

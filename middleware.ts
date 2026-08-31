@@ -7,7 +7,7 @@ export async function middleware(request: NextRequest) {
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return NextResponse.json(
       { error: "Yetkisiz erişim. Oturum açmanız gerekmektedir." },
-      { status: 401 },
+      { status: 401 }
     );
   }
 
@@ -18,12 +18,11 @@ export async function middleware(request: NextRequest) {
   if (!supabaseUrl || !supabaseAnonKey) {
     return NextResponse.json(
       { error: "Sunucu yapılandırma hatası." },
-      { status: 500 },
+      { status: 500 }
     );
   }
 
   try {
-    // Edge middleware içerisinde Supabase REST API ile token doğrulaması
     const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -34,13 +33,12 @@ export async function middleware(request: NextRequest) {
     if (!res.ok) {
       return NextResponse.json(
         { error: "Geçersiz veya süresi dolmuş oturum." },
-        { status: 401 },
+        { status: 401 }
       );
     }
 
     const userData = await res.json();
     const requestHeaders = new Headers(request.headers);
-    // Güvenli user_id aktarımı
     requestHeaders.set("x-user-id", userData.id);
 
     return NextResponse.next({
@@ -48,14 +46,14 @@ export async function middleware(request: NextRequest) {
         headers: requestHeaders,
       },
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Auth servisine ulaşılamadı." },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
 
 export const config = {
-  matcher: ["/api/ai-recommend", "/api/tmdb"],
+  matcher: ["/api/ai-recommend"],
 };
