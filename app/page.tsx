@@ -380,9 +380,7 @@ export default function Home() {
         }
       } else {
         if (!explore.isLoading && !explore.isFetchingMore && explore.hasMore) {
-          const nextPage = explore.page + 1;
-          explore.setPage(nextPage);
-          explore.fetchContent(nextPage);
+          explore.fetchContent(explore.page + 1);
         }
       }
     }

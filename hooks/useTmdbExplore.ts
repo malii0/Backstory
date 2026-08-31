@@ -35,7 +35,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
   const [hasMore, setHasMore] = useState(true);
 
   const requestIdRef = useRef(0);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const isFetchingRef = useRef(false);
 
   const [nowPlayingIds, setNowPlayingIds] = useState<Set<number>>(new Set());
   const [providers, setProviders] = useState<WatchProviderInfo[]>([]);
@@ -68,51 +68,22 @@ export function useTmdbExplore(activeTab: ActiveTab) {
     setExploreMode("standard");
   }
 
-  const [prevActiveTab, setPrevActiveTab] = useState(activeTab);
-  if (activeTab !== prevActiveTab) {
-    setPrevActiveTab(activeTab);
-    if (activeTab !== "explore") {
-      setExploreMode("standard");
-      if (
-        sortBy === "popularity.desc" ||
-        sortBy === "vote_count.desc" ||
-        sortBy === "vote_average.desc"
-      ) {
-        setSortBy("updated_at.desc");
-      }
-    } else {
-      if (
-        sortBy === "updated_at.desc" ||
-        sortBy === "my_rating.desc" ||
-        sortBy === "watch_count.desc"
-      ) {
-        setSortBy("popularity.desc");
-      }
-    }
-  }
-
   useEffect(() => {
     if (query === "") {
       setDebouncedQuery("");
       return;
     }
-    const timer = setTimeout(() => {
-      setDebouncedQuery(query);
-    }, 350);
+    const timer = setTimeout(() => setDebouncedQuery(query), 350);
     return () => clearTimeout(timer);
   }, [query]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedYearRange(yearRange);
-    }, 350);
+    const timer = setTimeout(() => setDebouncedYearRange(yearRange), 350);
     return () => clearTimeout(timer);
   }, [yearRange]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedMinRating(minRating);
-    }, 350);
+    const timer = setTimeout(() => setDebouncedMinRating(minRating), 350);
     return () => clearTimeout(timer);
   }, [minRating]);
 
@@ -146,7 +117,6 @@ export function useTmdbExplore(activeTab: ActiveTab) {
         });
 
         const ALLOWED_PROVIDER_IDS = [8, 119, 337, 1899];
-
         const filteredProviders = Array.from(uniqueMap.values())
           .filter((p) => ALLOWED_PROVIDER_IDS.includes(p.provider_id))
           .sort(
@@ -156,9 +126,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
           );
 
         setProviders(filteredProviders);
-      } catch (err) {
-        console.error("Platform sağlayıcıları çekilemedi:", err);
-      }
+      } catch {}
     };
     fetchProviders();
   }, []);
@@ -176,9 +144,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
           );
           setNowPlayingIds(ids);
         }
-      } catch (err) {
-        console.error("Vizyondakiler listesi çekilemedi:", err);
-      }
+      } catch {}
     };
     fetchNowPlayingIds();
   }, []);
@@ -230,17 +196,16 @@ export function useTmdbExplore(activeTab: ActiveTab) {
   const fetchContent = useCallback(
     async (pageNum: number, isNewSearch = false) => {
       if (activeTab !== "explore" || exploreMode === "personalized") return;
+      if (isFetchingRef.current && !isNewSearch) return;
 
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
-
+      isFetchingRef.current = true;
       const currentRequestId = ++requestIdRef.current;
 
-      if (pageNum === 1) setIsLoading(true);
-      else setIsFetchingMore(true);
+      if (pageNum === 1 || isNewSearch) {
+        setIsLoading(true);
+      } else {
+        setIsFetchingMore(true);
+      }
       setErrorMessage(null);
 
       try {
@@ -266,7 +231,6 @@ export function useTmdbExplore(activeTab: ActiveTab) {
           proxyParams.append("page", pageNum.toString());
         } else {
           const type = selectedMediaType === "tv" ? "tv" : "movie";
-
           let minVotes = 0;
           if (sortBy === "vote_average.desc") {
             minVotes = type === "tv" ? 800 : 3000;
@@ -320,10 +284,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
           }
         }
 
-        const res = await fetchWithAuth(`/api/tmdb?${proxyParams.toString()}`, {
-          signal: controller.signal,
-        });
-
+        const res = await fetchWithAuth(`/api/tmdb?${proxyParams.toString()}`);
         if (currentRequestId !== requestIdRef.current) return;
 
         if (!res.ok) {
@@ -357,6 +318,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
         if (pageNum === 1 || isNewSearch) {
           setSearchResults(results);
           setTotalResults(data.total_results || 0);
+          setPage(1);
         } else {
           setSearchResults((prev) => {
             const existingKeys = new Set(
@@ -367,11 +329,11 @@ export function useTmdbExplore(activeTab: ActiveTab) {
             );
             return [...prev, ...uniqueNewItems];
           });
+          setPage(pageNum);
         }
 
         setHasMore(pageNum < (data.total_pages || 1));
       } catch (err: unknown) {
-        if ((err as Error)?.name === "AbortError") return;
         if (currentRequestId === requestIdRef.current) {
           const msg = err instanceof Error ? err.message : "Bir hata oluştu.";
           setErrorMessage(msg);
@@ -380,6 +342,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
         if (currentRequestId === requestIdRef.current) {
           setIsLoading(false);
           setIsFetchingMore(false);
+          isFetchingRef.current = false;
         }
       }
     },
@@ -399,19 +362,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
 
   useEffect(() => {
     if (activeTab !== "explore" || exploreMode === "personalized") return;
-
-    let isMounted = true;
-    const executeInitialFetch = async () => {
-      await fetchContent(1, true);
-    };
-
-    if (isMounted) {
-      executeInitialFetch();
-    }
-
-    return () => {
-      isMounted = false;
-    };
+    fetchContent(1, true);
   }, [
     debouncedQuery,
     selectedMediaType,
