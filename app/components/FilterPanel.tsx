@@ -64,6 +64,7 @@ export default function FilterPanel({
             <input
               ref={modalSearchInputRef}
               type="text"
+              maxLength={150}
               placeholder={
                 activeTab === "explore"
                   ? "Film veya dizi arayın..."

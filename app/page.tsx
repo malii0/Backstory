@@ -721,6 +721,7 @@ export default function Home() {
                   <input
                     ref={searchInputRef}
                     type="text"
+                    maxLength={150}
                     placeholder={
                       activeTab === "explore"
                         ? "Film veya dizi arayın..."
