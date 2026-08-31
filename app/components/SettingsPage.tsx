@@ -14,6 +14,7 @@ import {
   Mail,
   Monitor,
   User as UserIcon,
+  Link as LinkIcon,
 } from "lucide-react";
 
 interface SettingsPageProps {
@@ -38,11 +39,8 @@ export default function SettingsPage({
   userProfile,
   onUpdated,
 }: SettingsPageProps) {
-  const [displayName, setDisplayName] = useState(
-    userProfile?.displayName || "",
-  );
-  const [avatarUrl, setAvatarUrl] = useState(userProfile?.avatarUrl || "🎬");
   const [username, setUsername] = useState(userProfile?.username || "");
+  const [avatarUrl, setAvatarUrl] = useState(userProfile?.avatarUrl || "🎬");
   const [isPublic, setIsPublic] = useState(userProfile?.isPublic || false);
 
   const [loading, setLoading] = useState(false);
@@ -62,7 +60,6 @@ export default function SettingsPage({
   if (userProfile !== prevProfile) {
     setPrevProfile(userProfile);
     if (userProfile) {
-      setDisplayName(userProfile.displayName || "");
       setUsername(userProfile.username || "");
       setAvatarUrl(userProfile.avatarUrl || "🎬");
       setIsPublic(userProfile.isPublic || false);
@@ -85,18 +82,21 @@ export default function SettingsPage({
     setUpdateSuccess(false);
     setProfileError(null);
 
-    const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
-    if (!usernameRegex.test(username)) {
+    const cleanUsername = username.trim().toLowerCase();
+    const usernameRegex = /^[a-z0-9_]{3,20}$/;
+
+    if (!usernameRegex.test(cleanUsername)) {
       setProfileError(
-        "Kullanıcı adı 3-20 karakter uzunluğunda olmalı ve sadece harf, rakam, alt çizgi içermelidir.",
+        "Kullanıcı adı 3-20 karakter uzunluğunda olmalı ve sadece küçük harf, rakam ve alt çizgi (_) içermelidir.",
       );
       setLoading(false);
       return;
     }
 
+    // Hem username hem de displayName olarak tekil kullanıcı adı kaydedilir
     const result = await updateUserProfile(
-      username,
-      displayName,
+      cleanUsername,
+      cleanUsername,
       avatarUrl,
       isPublic,
     );
@@ -297,41 +297,29 @@ export default function SettingsPage({
             </div>
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <label className="block text-sm font-medium text-foreground">
-              Takma Adın
+              Kullanıcı Adı
             </label>
             <input
               type="text"
               required
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
+              value={username}
+              onChange={(e) =>
+                setUsername(
+                  e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""),
+                )
+              }
               className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:border-accent transition"
-              placeholder="Örn: Mali"
+              placeholder="kullanici_adi"
             />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-foreground">
-              Kullanıcı Adı (URL)
-            </label>
-            <div className="flex items-center">
-              <span className="bg-muted border border-r-0 border-border rounded-l-xl px-3 py-2.5 text-sm text-muted-foreground">
-                backstory.com/u/
-              </span>
-              <input
-                type="text"
-                required
-                value={username}
-                onChange={(e) =>
-                  setUsername(
-                    e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""),
-                  )
-                }
-                className="w-full px-3 py-2.5 bg-background border border-border rounded-r-xl text-sm text-foreground focus:outline-none focus:border-accent transition"
-                placeholder="kullanici_adi"
-              />
-            </div>
+            {username && (
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 pt-0.5">
+                <LinkIcon className="w-3 h-3 text-accent" />
+                Profil Bağlantınız:{" "}
+                <span className="text-accent font-semibold">/u/{username}</span>
+              </p>
+            )}
           </div>
 
           <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-background/50 mt-4">
