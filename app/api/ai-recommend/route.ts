@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateObject } from "ai";
 import { z } from "zod";
-import { supabase } from "@/lib/supabase";
+import { redis } from "@/lib/redis";
 
 interface ItemRef {
   title?: string;
@@ -27,40 +27,57 @@ const google = createGoogleGenerativeAI({
   apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
 });
 
-// Zod Doğrulama ve Yük Sınırlandırması (Maksimum 5000 öğe olarak güncellendi)
+const mediaItemInputSchema = z.object({
+  id: z.union([z.number(), z.string()]).optional(),
+  title: z.string().max(300).optional(),
+  name: z.string().max(300).optional(),
+  media_type: z.enum(["movie", "tv"]).optional(),
+});
+
 const requestSchema = z.object({
-  watchlist: z.array(z.any()).max(30).default([]),
-  favorites: z.array(z.any()).max(30).default([]),
-  loggedKeys: z.array(z.string()).max(5000).default([]),
+  watchlist: z.array(mediaItemInputSchema).max(30).default([]),
+  favorites: z.array(mediaItemInputSchema).max(30).default([]),
+  loggedKeys: z.array(z.string().max(60)).max(5000).default([]),
 });
 
 export async function POST(req: Request) {
   try {
-    // --- AUTH KONTROLÜ BAŞLANGIÇ ---
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Yetkisiz erişim." }, { status: 401 });
-    }
-    const token = authHeader.split(" ")[1];
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
+    // Middleware'den gelen user_id okunur
+    const userId = req.headers.get("x-user-id");
+    if (!userId) {
       return NextResponse.json(
-        { error: "Geçersiz veya süresi dolmuş oturum." },
+        { error: "Oturum verisi alınamadı." },
         { status: 401 },
       );
     }
-    // --- AUTH KONTROLÜ BİTİŞ ---
+
+    if (redis) {
+      try {
+        const rateKey = `ratelimit:ai:${userId}`;
+        const currentRequests = await redis.incr(rateKey);
+        if (currentRequests === 1) {
+          await redis.expire(rateKey, 60);
+        }
+        if (currentRequests > 5) {
+          return NextResponse.json(
+            {
+              error:
+                "Çok fazla istek gönderdiniz. Lütfen 1 dakika sonra tekrar deneyin.",
+            },
+            { status: 429 },
+          );
+        }
+      } catch (err) {
+        console.warn("Redis AI rate limit hatası:", err);
+      }
+    }
 
     const body = await req.json().catch(() => ({}));
     const parsed = requestSchema.safeParse(body);
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: "Geçersiz istek veya limit aşıldı." },
+        { error: "Geçersiz istek parametreleri veya sınır aşımı." },
         { status: 400 },
       );
     }
@@ -77,7 +94,7 @@ export async function POST(req: Request) {
     }
 
     const pass1Result = await generateObject({
-      model: google("gemini-3.6-flash"),
+      model: google("gemini-2.5-flash"),
       schema: z.object({
         keywords: z
           .array(z.string())
@@ -182,7 +199,7 @@ Watchlist: ${JSON.stringify(watchlist.map((w: ItemRef) => w.title || w.name))}
     }));
 
     const pass2Result = await generateObject({
-      model: google("gemini-3.6-flash"),
+      model: google("gemini-2.5-flash"),
       schema: z.object({
         reasons: z.array(
           z.object({

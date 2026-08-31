@@ -266,7 +266,7 @@ export default function Home() {
           setActivityFeed(feed);
           lastFeedFetchRef.current = Date.now();
         }
-      } catch (err) {
+      } catch {
       } finally {
         if (isMounted) {
           setIsFeedLoading(false);
@@ -407,7 +407,7 @@ export default function Home() {
         include_image_language: "en,null",
       });
 
-      const res = await fetch(`/api/tmdb?${proxyParams.toString()}`);
+      const res = await fetchWithAuth(`/api/tmdb?${proxyParams.toString()}`);
       if (!res.ok) throw new Error("Detay verisi alınamadı.");
       const data = await res.json();
       setDetailData({ ...data, media_type: type });

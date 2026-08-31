@@ -14,6 +14,7 @@ import DetailDrawer from "@/app/components/DetailDrawer";
 import SkeletonGrid from "@/app/components/SkeletonGrid";
 import StatsDashboard from "@/app/components/StatsDashboard";
 import { useAuth } from "@/hooks/useAuth";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 export default function PublicProfilePage() {
   const params = useParams();
@@ -21,7 +22,6 @@ export default function PublicProfilePage() {
   const username = params.username as string;
   const auth = useAuth();
 
-  // Toast Bildirim Sistemi (Senin kayıt işlemlerin için)
   const [toasts, setToasts] = useState<ToastItemData[]>([]);
 
   const dismissToast = useCallback((id: string) => {
@@ -37,7 +37,6 @@ export default function PublicProfilePage() {
     [dismissToast],
   );
 
-  // Kendi veritabanı bağlantın
   const myLogsManager = useMediaLogs(auth.isAuthenticated, showToast);
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -112,12 +111,11 @@ export default function PublicProfilePage() {
         include_image_language: "en,null",
       });
 
-      const res = await fetch(`/api/tmdb?${proxyParams.toString()}`);
+      const res = await fetchWithAuth(`/api/tmdb?${proxyParams.toString()}`);
       if (!res.ok) throw new Error("Detay verisi alınamadı.");
       const data = await res.json();
       setDetailData({ ...data, media_type: type });
     } catch (err: unknown) {
-      console.error("Detay yükleme hatası:", err);
       setDetailError(err instanceof Error ? err.message : "Bir hata oluştu.");
     } finally {
       setIsDetailLoading(false);
@@ -248,9 +246,9 @@ export default function PublicProfilePage() {
                   <MediaCard
                     key={key}
                     item={item}
-                    log={log} // Arkadaşının verisi
-                    viewerLog={myLogsManager.logs[key]} // Senin kendi verin
-                    readOnly={!auth.isAuthenticated} // Giriş yapıldıysa butonları aktif et
+                    log={log}
+                    viewerLog={myLogsManager.logs[key]}
+                    readOnly={!auth.isAuthenticated}
                     onSelect={(i) => setSelectedItem(i)}
                     onToggleCompleted={(i) =>
                       myLogsManager.toggleCompleted(i, null, null)

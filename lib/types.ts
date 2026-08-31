@@ -107,6 +107,14 @@ export interface UserProfile {
   isPublic?: boolean;
 }
 
+export interface PublicMemberItem {
+  id: string;
+  username: string;
+  avatarUrl: string;
+  completedCount: number;
+  watchlistCount: number;
+}
+
 export interface ActivityFeedItem {
   id: string;
   userId: string;

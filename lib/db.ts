@@ -1,5 +1,11 @@
 import { supabase } from "./supabase";
-import { LogMetadata, UserProfile, ActivityFeedItem, MediaItem } from "./types";
+import {
+  LogMetadata,
+  UserProfile,
+  ActivityFeedItem,
+  MediaItem,
+  PublicMemberItem,
+} from "./types";
 import { Database } from "./database.types";
 
 type MediaLogRow = Database["public"]["Tables"]["media_logs"]["Row"];
@@ -62,7 +68,7 @@ export const fetchLogsFromSupabase = async (): Promise<{
     });
 
     return { data: logsRecord, error: null };
-  } catch (err: unknown) {
+  } catch {
     return { data: {}, error: "Sunucuyla bağlantı kurulamadı." };
   }
 };
@@ -102,10 +108,7 @@ export const saveLogToSupabase = async (
     .from("media_logs")
     .upsert(row as never, { onConflict: "user_id, key" });
 
-  if (error) {
-    return false;
-  }
-  return true;
+  return !error;
 };
 
 export const saveBulkLogsToSupabase = async (
@@ -146,10 +149,7 @@ export const saveBulkLogsToSupabase = async (
     .from("media_logs")
     .upsert(rows as never[], { onConflict: "user_id, key" });
 
-  if (error) {
-    return false;
-  }
-  return true;
+  return !error;
 };
 
 export const deleteLogFromSupabase = async (key: string): Promise<boolean> => {
@@ -167,10 +167,7 @@ export const deleteLogFromSupabase = async (key: string): Promise<boolean> => {
     .eq("key", key)
     .eq("user_id", user.id);
 
-  if (error) {
-    return false;
-  }
-  return true;
+  return !error;
 };
 
 export const deleteBulkLogsFromSupabase = async (
@@ -192,10 +189,7 @@ export const deleteBulkLogsFromSupabase = async (
     .eq("user_id", user.id)
     .in("key", keys);
 
-  if (error) {
-    return false;
-  }
-  return true;
+  return !error;
 };
 
 export const fetchUserProfile = async (): Promise<UserProfile | null> => {
@@ -224,10 +218,10 @@ export const fetchUserProfile = async (): Promise<UserProfile | null> => {
 };
 
 export const updateUserProfile = async (
-  username: string, // EKLENDİ
+  username: string,
   displayName: string,
   avatarUrl: string,
-  isPublic: boolean, // EKLENDİ
+  isPublic: boolean,
 ): Promise<{ success: boolean; error?: string }> => {
   const {
     data: { user },
@@ -236,7 +230,6 @@ export const updateUserProfile = async (
     return { success: false, error: "Kullanıcı oturumu bulunamadı." };
   }
 
-  // Benzersizlik kontrolü (Kullanıcı adı başkası tarafından alınmış mı?)
   const { data: existingUser } = await supabase
     .from("profiles")
     .select("id")
@@ -250,10 +243,10 @@ export const updateUserProfile = async (
 
   const profileRow: Database["public"]["Tables"]["profiles"]["Insert"] = {
     id: user.id,
-    username: username, // GÜNCELLENDİ
+    username: username,
     display_name: displayName,
     avatar_url: avatarUrl,
-    is_public: isPublic, // EKLENDİ
+    is_public: isPublic,
     updated_at: new Date().toISOString(),
   };
 
@@ -271,24 +264,17 @@ export const updateUserProfile = async (
 export const fetchActivityFeed = async (
   limit = 30,
 ): Promise<ActivityFeedItem[]> => {
-  const { data: logs, error: logsError } = await supabase
-    .from("media_logs")
-    .select("*")
-    .order("updated_at", { ascending: false })
-    .limit(limit);
-
-  if (logsError || !logs) return [];
-
-  const mediaLogs = logs as unknown as MediaLogRow[];
-
-  const userIds = Array.from(new Set(mediaLogs.map((l) => l.user_id)));
-  const { data: profiles } = await supabase
+  // Yalnızca profili herkese açık (is_public = true) olan kullanıcıların ID'lerini çek
+  const { data: publicProfiles } = await supabase
     .from("profiles")
     .select("*")
-    .in("id", userIds);
+    .eq("is_public", true);
 
+  if (!publicProfiles || publicProfiles.length === 0) return [];
+
+  const profileRows = publicProfiles as unknown as ProfileRow[];
+  const publicUserIds = profileRows.map((p) => p.id);
   const profileMap = new Map<string, UserProfile>();
-  const profileRows = (profiles || []) as unknown as ProfileRow[];
 
   profileRows.forEach((p) => {
     profileMap.set(p.id, {
@@ -296,8 +282,20 @@ export const fetchActivityFeed = async (
       username: p.username,
       displayName: p.display_name || p.username,
       avatarUrl: p.avatar_url || "🎬",
+      isPublic: true,
     });
   });
+
+  const { data: logs, error: logsError } = await supabase
+    .from("media_logs")
+    .select("*")
+    .in("user_id", publicUserIds)
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+
+  if (logsError || !logs) return [];
+
+  const mediaLogs = logs as unknown as MediaLogRow[];
 
   return mediaLogs.map((row) => ({
     id: `${row.user_id}_${row.key}`,
@@ -312,7 +310,6 @@ export const fetchActivityFeed = async (
   }));
 };
 
-// --- YENİ EKLENEN FONKSİYONLAR BAŞLANGIÇ ---
 export const fetchProfileByUsername = async (
   username: string,
 ): Promise<UserProfile | null> => {
@@ -353,4 +350,40 @@ export const fetchPublicLogs = async (
 
   return logsRecord;
 };
-// --- YENİ EKLENEN FONKSİYONLAR BİTİŞ ---
+
+export const fetchPublicMembers = async (): Promise<PublicMemberItem[]> => {
+  const { data: profiles, error: pError } = await supabase
+    .from("profiles")
+    .select("id, username, avatar_url, is_public")
+    .eq("is_public", true);
+
+  if (pError || !profiles) return [];
+
+  const profileRows = profiles as unknown as ProfileRow[];
+  const memberIds = profileRows.map((p) => p.id);
+  if (memberIds.length === 0) return [];
+
+  const { data: logs } = await supabase
+    .from("media_logs")
+    .select("user_id, is_completed, is_watchlist")
+    .in("user_id", memberIds);
+
+  const statsMap = new Map<string, { completed: number; watchlist: number }>();
+  ((logs || []) as unknown as MediaLogRow[]).forEach((l) => {
+    const curr = statsMap.get(l.user_id) || { completed: 0, watchlist: 0 };
+    if (l.is_completed) curr.completed += 1;
+    if (l.is_watchlist) curr.watchlist += 1;
+    statsMap.set(l.user_id, curr);
+  });
+
+  return profileRows.map((p) => {
+    const s = statsMap.get(p.id) || { completed: 0, watchlist: 0 };
+    return {
+      id: p.id,
+      username: p.username,
+      avatarUrl: p.avatar_url || "🎬",
+      completedCount: s.completed,
+      watchlistCount: s.watchlist,
+    };
+  });
+};

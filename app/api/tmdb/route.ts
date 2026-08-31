@@ -18,8 +18,6 @@ const ALLOWED_PATTERNS = [
   /^\/(movie|tv)\/\d+\/watch\/providers$/,
 ];
 
-const rateLimitMap = new Map<string, { count: number; lastReset: number }>();
-
 export async function GET(request: NextRequest) {
   if (!TMDB_API_KEY) {
     return NextResponse.json(
@@ -28,27 +26,30 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (rateLimitMap.size > 2000) {
-    rateLimitMap.clear();
-  }
+  // Not: Kimlik doğrulama işlemi artık middleware.ts tarafından yapılmaktadır.
 
   const ip =
-    request.headers.get("x-forwarded-for") ||
+    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
     request.headers.get("x-real-ip") ||
     "unknown";
-  const now = Date.now();
-  const limitInfo = rateLimitMap.get(ip) || { count: 0, lastReset: now };
 
-  if (now - limitInfo.lastReset > 60000) {
-    limitInfo.count = 1;
-    limitInfo.lastReset = now;
-  } else {
-    limitInfo.count++;
-    if (limitInfo.count > 120) {
-      return NextResponse.json({ error: "Too Many Requests" }, { status: 429 });
+  if (redis) {
+    try {
+      const rateKey = `ratelimit:tmdb:${ip}`;
+      const currentRequests = await redis.incr(rateKey);
+      if (currentRequests === 1) {
+        await redis.expire(rateKey, 60);
+      }
+      if (currentRequests > 120) {
+        return NextResponse.json(
+          { error: "Too Many Requests" },
+          { status: 429 },
+        );
+      }
+    } catch (err) {
+      console.warn("Redis rate limit hatası:", err);
     }
   }
-  rateLimitMap.set(ip, limitInfo);
 
   const { searchParams } = new URL(request.url);
   const endpoint = searchParams.get("endpoint");
@@ -68,7 +69,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // 1. Hedef URL ve Önbellek Anahtarını (Cache Key) Oluşturma
   const targetUrl = new URL(`${TMDB_BASE_URL}${endpoint}`);
   targetUrl.searchParams.append("api_key", TMDB_API_KEY);
   targetUrl.searchParams.append("language", "tr-TR");
@@ -85,7 +85,6 @@ export async function GET(request: NextRequest) {
 
   const cacheKey = `tmdb:${endpoint}?${cacheParams.toString()}`;
 
-  // 2. Redis Önbellek Kontrolü
   if (redis) {
     try {
       const cachedData = await redis.get(cacheKey);
@@ -99,11 +98,10 @@ export async function GET(request: NextRequest) {
         });
       }
     } catch (err) {
-      console.warn("Redis okuma hatasi:", err);
+      console.warn("Redis okuma hatası:", err);
     }
   }
 
-  // 3. TMDB API İsteği
   try {
     const res = await fetch(targetUrl.toString());
 
@@ -117,12 +115,11 @@ export async function GET(request: NextRequest) {
 
     const data = await res.json();
 
-    // 4. Redis'e 24 Saatlik (86400 sn) Yazma
     if (redis) {
       try {
         await redis.set(cacheKey, JSON.stringify(data), "EX", 86400);
       } catch (err) {
-        console.warn("Redis yazma hatasi:", err);
+        console.warn("Redis yazma hatası:", err);
       }
     }
 
