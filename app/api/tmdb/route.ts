@@ -86,19 +86,21 @@ export async function GET(request: NextRequest) {
   const cacheKey = `tmdb:${endpoint}?${cacheParams.toString()}`;
 
   // 2. Redis Önbellek Kontrolü
-  try {
-    const cachedData = await redis.get(cacheKey);
-    if (cachedData) {
-      return NextResponse.json(JSON.parse(cachedData), {
-        headers: {
-          "X-Cache": "HIT",
-          "Cache-Control":
-            "public, s-maxage=86400, stale-while-revalidate=43200",
-        },
-      });
+  if (redis) {
+    try {
+      const cachedData = await redis.get(cacheKey);
+      if (cachedData) {
+        return NextResponse.json(JSON.parse(cachedData), {
+          headers: {
+            "X-Cache": "HIT",
+            "Cache-Control":
+              "public, s-maxage=86400, stale-while-revalidate=43200",
+          },
+        });
+      }
+    } catch (err) {
+      console.warn("Redis okuma hatasi:", err);
     }
-  } catch (err) {
-    console.warn("Redis okuma hatasi:", err);
   }
 
   // 3. TMDB API İsteği
@@ -116,10 +118,12 @@ export async function GET(request: NextRequest) {
     const data = await res.json();
 
     // 4. Redis'e 24 Saatlik (86400 sn) Yazma
-    try {
-      await redis.set(cacheKey, JSON.stringify(data), "EX", 86400);
-    } catch (err) {
-      console.warn("Redis yazma hatasi:", err);
+    if (redis) {
+      try {
+        await redis.set(cacheKey, JSON.stringify(data), "EX", 86400);
+      } catch (err) {
+        console.warn("Redis yazma hatasi:", err);
+      }
     }
 
     return NextResponse.json(data, {
