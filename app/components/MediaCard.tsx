@@ -18,6 +18,7 @@ import { getEffectiveWatchCount } from "@/lib/utils";
 interface MediaCardProps {
   item: MediaItem;
   log?: LogMetadata;
+  viewerLog?: LogMetadata;
   isNowPlaying?: boolean;
   readOnly?: boolean;
   onSelect?: (item: MediaItem) => void;
@@ -28,6 +29,7 @@ interface MediaCardProps {
 function MediaCardComponent({
   item,
   log,
+  viewerLog,
   isNowPlaying,
   readOnly = false,
   onSelect,
@@ -45,6 +47,11 @@ function MediaCardComponent({
   const isCompleted = !!log?.isCompleted;
   const isWatchlist = !!log?.isWatchlist;
   const userRating = log?.rating ?? 0;
+
+  const viewerIsCompleted =
+    viewerLog !== undefined ? !!viewerLog.isCompleted : isCompleted;
+  const viewerIsWatchlist =
+    viewerLog !== undefined ? !!viewerLog.isWatchlist : isWatchlist;
 
   const handleSelect = useCallback(() => {
     if (onSelect) onSelect(item);
@@ -150,7 +157,7 @@ function MediaCardComponent({
             <button
               onClick={handleCompleted}
               style={
-                isCompleted
+                viewerIsCompleted
                   ? {
                       backgroundColor: "var(--app-completed)",
                       borderColor: "var(--app-completed)",
@@ -159,23 +166,25 @@ function MediaCardComponent({
                   : undefined
               }
               className={`p-2 rounded-xl backdrop-blur-md border transition-all ${
-                isCompleted
+                viewerIsCompleted
                   ? "font-bold shadow-md"
                   : "bg-background/80 border-border text-muted-foreground hover:text-foreground shadow-md"
               }`}
-              title={isCompleted ? "İzlenenlerden Çıkar" : "İzlendi İşaretle"}
+              title={
+                viewerIsCompleted ? "İzlenenlerden Çıkar" : "İzlendi İşaretle"
+              }
             >
               <Eye className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={handleWatchlist}
               className={`p-2 rounded-xl backdrop-blur-md border transition-all ${
-                isWatchlist
+                viewerIsWatchlist
                   ? "bg-accent border-accent text-accent-foreground font-bold shadow-md"
                   : "bg-background/80 border-border text-muted-foreground hover:text-foreground shadow-md"
               }`}
               title={
-                isWatchlist
+                viewerIsWatchlist
                   ? "İzleme Listesinden Çıkar"
                   : "İzleme Listesine Ekle"
               }

@@ -219,12 +219,15 @@ export const fetchUserProfile = async (): Promise<UserProfile | null> => {
     username: profile.username,
     displayName: profile.display_name || profile.username,
     avatarUrl: profile.avatar_url || "🎬",
+    isPublic: profile.is_public ?? false,
   };
 };
 
 export const updateUserProfile = async (
+  username: string, // EKLENDİ
   displayName: string,
   avatarUrl: string,
+  isPublic: boolean, // EKLENDİ
 ): Promise<{ success: boolean; error?: string }> => {
   const {
     data: { user },
@@ -233,14 +236,24 @@ export const updateUserProfile = async (
     return { success: false, error: "Kullanıcı oturumu bulunamadı." };
   }
 
-  const defaultUsername =
-    (user.email?.split("@")[0] || "user") + "_" + user.id.slice(0, 4);
+  // Benzersizlik kontrolü (Kullanıcı adı başkası tarafından alınmış mı?)
+  const { data: existingUser } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("username", username)
+    .neq("id", user.id)
+    .maybeSingle();
+
+  if (existingUser) {
+    return { success: false, error: "Bu kullanıcı adı zaten alınmış." };
+  }
 
   const profileRow: Database["public"]["Tables"]["profiles"]["Insert"] = {
     id: user.id,
-    username: defaultUsername,
+    username: username, // GÜNCELLENDİ
     display_name: displayName,
     avatar_url: avatarUrl,
+    is_public: isPublic, // EKLENDİ
     updated_at: new Date().toISOString(),
   };
 
@@ -318,6 +331,7 @@ export const fetchProfileByUsername = async (
     username: profile.username,
     displayName: profile.display_name || profile.username,
     avatarUrl: profile.avatar_url || "🎬",
+    isPublic: profile.is_public ?? false,
   };
 };
 

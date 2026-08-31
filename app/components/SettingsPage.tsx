@@ -42,8 +42,12 @@ export default function SettingsPage({
     userProfile?.displayName || "",
   );
   const [avatarUrl, setAvatarUrl] = useState(userProfile?.avatarUrl || "🎬");
+  const [username, setUsername] = useState(userProfile?.username || "");
+  const [isPublic, setIsPublic] = useState(userProfile?.isPublic || false);
+
   const [loading, setLoading] = useState(false);
   const [updateSuccess, setUpdateSuccess] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordMsg, setPasswordMsg] = useState<{
@@ -59,7 +63,9 @@ export default function SettingsPage({
     setPrevProfile(userProfile);
     if (userProfile) {
       setDisplayName(userProfile.displayName || "");
+      setUsername(userProfile.username || "");
       setAvatarUrl(userProfile.avatarUrl || "🎬");
+      setIsPublic(userProfile.isPublic || false);
     }
     setPasswordMsg(null);
   }
@@ -77,13 +83,31 @@ export default function SettingsPage({
     e.preventDefault();
     setLoading(true);
     setUpdateSuccess(false);
-    
-    const success = await updateUserProfile(displayName, avatarUrl);
+    setProfileError(null);
+
+    const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
+    if (!usernameRegex.test(username)) {
+      setProfileError(
+        "Kullanıcı adı 3-20 karakter uzunluğunda olmalı ve sadece harf, rakam, alt çizgi içermelidir.",
+      );
+      setLoading(false);
+      return;
+    }
+
+    const result = await updateUserProfile(
+      username,
+      displayName,
+      avatarUrl,
+      isPublic,
+    );
+
     setLoading(false);
-    
-    if (success) {
+
+    if (result.success) {
       setUpdateSuccess(true);
       await onUpdated();
+    } else {
+      setProfileError(result.error || "Güncelleme başarısız oldu.");
     }
   };
 
@@ -182,8 +206,7 @@ export default function SettingsPage({
           </span>
           <div className="flex flex-wrap items-center gap-3">
             {ACCENT_COLORS.map((col) => {
-              const isActive =
-                accent.toLowerCase() === col.value.toLowerCase();
+              const isActive = accent.toLowerCase() === col.value.toLowerCase();
               return (
                 <button
                   key={col.id}
@@ -215,7 +238,7 @@ export default function SettingsPage({
             </label>
           </div>
         </div>
-        
+
         <p className="text-[10px] text-muted-foreground/60 italic text-right pt-2">
           Değişiklikler anında uygulanır.
         </p>
@@ -288,13 +311,61 @@ export default function SettingsPage({
             />
           </div>
 
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-foreground">
+              Kullanıcı Adı (URL)
+            </label>
+            <div className="flex items-center">
+              <span className="bg-muted border border-r-0 border-border rounded-l-xl px-3 py-2.5 text-sm text-muted-foreground">
+                backstory.com/u/
+              </span>
+              <input
+                type="text"
+                required
+                value={username}
+                onChange={(e) =>
+                  setUsername(
+                    e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""),
+                  )
+                }
+                className="w-full px-3 py-2.5 bg-background border border-border rounded-r-xl text-sm text-foreground focus:outline-none focus:border-accent transition"
+                placeholder="kullanici_adi"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-background/50 mt-4">
+            <div>
+              <p className="text-sm font-medium text-foreground">Açık Profil</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Profilinizi ve listelerinizi diğer kullanıcıların görmesine izin
+                verin.
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={isPublic}
+                onChange={(e) => setIsPublic(e.target.checked)}
+              />
+              <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+            </label>
+          </div>
+
           <div className="pt-2">
+            {profileError && (
+              <div className="mb-3 p-3 rounded-xl text-xs text-red-400 bg-red-950/50 border border-red-900/50 text-center animate-in fade-in duration-300">
+                {profileError}
+              </div>
+            )}
+
             {updateSuccess && (
               <div className="mb-3 p-3 rounded-xl text-xs text-emerald-400 bg-emerald-950/50 border border-emerald-900/50 text-center animate-in fade-in duration-300">
                 Profiliniz başarıyla güncellendi.
               </div>
             )}
-            
+
             <button
               type="submit"
               disabled={loading}

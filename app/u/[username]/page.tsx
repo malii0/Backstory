@@ -1,5 +1,8 @@
 "use client";
 
+import { useMediaLogs } from "@/hooks/useMediaLogs";
+import ToastList, { ToastItemData } from "@/app/components/ToastList";
+
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, LayoutGrid, Bookmark } from "lucide-react";
@@ -17,6 +20,25 @@ export default function PublicProfilePage() {
   const router = useRouter();
   const username = params.username as string;
   const auth = useAuth();
+
+  // Toast Bildirim Sistemi (Senin kayıt işlemlerin için)
+  const [toasts, setToasts] = useState<ToastItemData[]>([]);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const showToast = useCallback(
+    (msg: string) => {
+      const id = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      setToasts((prev) => [...prev.slice(-2), { id, message: msg }]);
+      setTimeout(() => dismissToast(id), 6000);
+    },
+    [dismissToast],
+  );
+
+  // Kendi veritabanı bağlantın
+  const myLogsManager = useMediaLogs(auth.isAuthenticated, showToast);
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [logs, setLogs] = useState<Record<string, LogMetadata>>({});
@@ -60,8 +82,8 @@ export default function PublicProfilePage() {
     const loadData = async () => {
       setLoading(true);
       const p = await fetchProfileByUsername(username);
-      if (!p) {
-        setError("Kullanıcı bulunamadı veya profil gizli.");
+      if (!p || (!p.isPublic && auth.userProfile?.username !== username)) {
+        setError("Kullanıcı bulunamadı veya bu profil gizli.");
         setLoading(false);
         return;
       }
@@ -164,6 +186,7 @@ export default function PublicProfilePage() {
 
   return (
     <main className="min-h-dvh bg-background text-foreground font-sans p-4 sm:p-6 md:p-8 relative pb-10">
+      <ToastList toasts={toasts} onUndo={() => {}} canUndo={false} />
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="mb-4">
           <button
@@ -225,9 +248,16 @@ export default function PublicProfilePage() {
                   <MediaCard
                     key={key}
                     item={item}
-                    log={log}
-                    readOnly={true}
+                    log={log} // Arkadaşının verisi
+                    viewerLog={myLogsManager.logs[key]} // Senin kendi verin
+                    readOnly={!auth.isAuthenticated} // Giriş yapıldıysa butonları aktif et
                     onSelect={(i) => setSelectedItem(i)}
+                    onToggleCompleted={(i) =>
+                      myLogsManager.toggleCompleted(i, null, null)
+                    }
+                    onToggleWatchlist={(i) =>
+                      myLogsManager.toggleWatchlist(i, null, null)
+                    }
                   />
                 );
               })}

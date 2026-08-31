@@ -389,13 +389,15 @@ export default function StatsDashboard({
               })}
             </div>
 
-            <p className="text-[11px] text-muted-foreground text-center">
-              En çok{" "}
-              <span className="text-accent font-bold">
-                {stats.mostFrequentRating}
-              </span>{" "}
-              puanını vermeyi tercih etmişsin.
-            </p>
+            {stats.ratedLogs.length > 0 && (
+              <p className="text-[11px] text-muted-foreground text-center">
+                En çok{" "}
+                <span className="text-accent font-bold">
+                  {stats.mostFrequentRating}
+                </span>{" "}
+                puanını vermeyi tercih etmişsin.
+              </p>
+            )}
           </div>
 
           <div className="md:col-span-5 bg-card/80 border border-border/80 p-6 rounded-3xl space-y-4">

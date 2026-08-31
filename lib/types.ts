@@ -104,6 +104,7 @@ export interface UserProfile {
   username: string;
   displayName: string;
   avatarUrl: string;
+  isPublic?: boolean;
 }
 
 export interface ActivityFeedItem {

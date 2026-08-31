@@ -35,6 +35,7 @@ import FilterPanel from "./components/FilterPanel";
 import PrivacyModal from "./components/PrivacyModal";
 import RandomPickModal from "./components/RandomPickModal";
 import ToastList, { ToastItemData } from "./components/ToastList";
+import AnnouncementModal from "./components/AnnouncementModal";
 
 import { GENRES_LIST } from "@/lib/constants";
 import {
@@ -55,6 +56,8 @@ import { useMediaLogs } from "@/hooks/useMediaLogs";
 import { useTmdbExplore, DEFAULT_YEAR_RANGE } from "@/hooks/useTmdbExplore";
 import { useRecommendations } from "@/hooks/useRecommendations";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+
+const LATEST_ANNOUNCEMENT_ID = "v1_profiles_privacy_2026_08";
 
 function TabParamHandler({ onTabMatch }: { onTabMatch: () => void }) {
   const searchParams = useSearchParams();
@@ -81,6 +84,7 @@ export default function Home() {
 
   const [isRatingManagerOpen, setIsRatingManagerOpen] = useState(false);
   const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
+  const [isAnnouncementOpen, setIsAnnouncementOpen] = useState(false);
   const [randomPick, setRandomPick] = useState<MediaItem | null>(null);
 
   const [hideLoggedItems, setHideLoggedItems] = useState(false);
@@ -209,6 +213,22 @@ export default function Home() {
   };
 
   useEffect(() => {
+    if (!auth.isAuthenticated || auth.isAuthLoading) return;
+
+    const seenAnnouncement = localStorage.getItem(
+      "backstory_announcement_seen",
+    );
+    if (seenAnnouncement !== LATEST_ANNOUNCEMENT_ID) {
+      setIsAnnouncementOpen(true);
+    }
+  }, [auth.isAuthenticated, auth.isAuthLoading]);
+
+  const handleCloseAnnouncement = () => {
+    localStorage.setItem("backstory_announcement_seen", LATEST_ANNOUNCEMENT_ID);
+    setIsAnnouncementOpen(false);
+  };
+
+  useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
 
@@ -267,7 +287,8 @@ export default function Home() {
       randomPick ||
       auth.isAuthModalOpen ||
       isRatingManagerOpen ||
-      isPrivacyModalOpen
+      isPrivacyModalOpen ||
+      isAnnouncementOpen
     ) {
       document.body.style.overflow = "hidden";
     } else {
@@ -282,6 +303,7 @@ export default function Home() {
     auth.isAuthModalOpen,
     isRatingManagerOpen,
     isPrivacyModalOpen,
+    isAnnouncementOpen,
   ]);
 
   useEffect(() => {
@@ -549,6 +571,13 @@ export default function Home() {
         onClose={() => setIsPrivacyModalOpen(false)}
       />
 
+      <AnnouncementModal
+        isOpen={isAnnouncementOpen}
+        userProfile={auth.userProfile}
+        onClose={handleCloseAnnouncement}
+        onProfileUpdated={auth.loadProfile}
+      />
+
       <ToastList
         toasts={toasts}
         onUndo={handleUndo}
@@ -749,7 +778,7 @@ export default function Home() {
                       className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-card border border-border rounded-lg text-xs text-accent transition-colors whitespace-nowrap"
                     >
                       <span>Arama: &quot;{explore.query}&quot;</span>
-                      <X className="w-3 h-3 text-muted-foreground" />
+                      <X className="w-3.5 h-3.5 text-muted-foreground" />
                     </button>
                   )}
 
@@ -766,7 +795,7 @@ export default function Home() {
                               ? "Sana Özel"
                               : "Yakında Gelecekler"}
                         </span>
-                        <X className="w-3 h-3 text-muted-foreground" />
+                        <X className="w-3.5 h-3.5 text-muted-foreground" />
                       </button>
                     )}
 
@@ -780,7 +809,7 @@ export default function Home() {
                           ? "Filmler"
                           : "Diziler"}
                       </span>
-                      <X className="w-3 h-3 text-muted-foreground" />
+                      <X className="w-3.5 h-3.5 text-muted-foreground" />
                     </button>
                   )}
 
@@ -790,7 +819,7 @@ export default function Home() {
                       className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-card border border-border rounded-lg text-xs text-accent transition-colors whitespace-nowrap"
                     >
                       <span>{explore.minRating.toFixed(1)}+ Puan</span>
-                      <X className="w-3 h-3 text-muted-foreground" />
+                      <X className="w-3.5 h-3.5 text-muted-foreground" />
                     </button>
                   )}
 
@@ -802,7 +831,7 @@ export default function Home() {
                       <span>
                         {explore.yearRange.start} - {explore.yearRange.end}
                       </span>
-                      <X className="w-3 h-3 text-muted-foreground" />
+                      <X className="w-3.5 h-3.5 text-muted-foreground" />
                     </button>
                   )}
 
@@ -816,7 +845,7 @@ export default function Home() {
                           (g) => g.id === explore.selectedGenreId,
                         )?.name || "Kategori"}
                       </span>
-                      <X className="w-3 h-3 text-muted-foreground" />
+                      <X className="w-3.5 h-3.5 text-muted-foreground" />
                     </button>
                   )}
 
@@ -830,7 +859,7 @@ export default function Home() {
                           (p) => p.provider_id === explore.selectedProviderId,
                         )?.provider_name || "Platform"}
                       </span>
-                      <X className="w-3 h-3 text-muted-foreground" />
+                      <X className="w-3.5 h-3.5 text-muted-foreground" />
                     </button>
                   )}
 
