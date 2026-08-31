@@ -371,7 +371,11 @@ export default function Home() {
       document.documentElement.offsetHeight - 500
     ) {
       if (explore.exploreMode === "personalized") {
-        if (!recommendations.isFetchingMore && recommendations.hasMore) {
+        if (
+          !recommendations.isFetchingMore &&
+          !recommendations.isLoading &&
+          recommendations.hasMore
+        ) {
           recommendations.loadMore();
         }
       } else {

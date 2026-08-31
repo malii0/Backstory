@@ -26,31 +26,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Not: Kimlik doğrulama işlemi artık middleware.ts tarafından yapılmaktadır.
-
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
-    request.headers.get("x-real-ip") ||
-    "unknown";
-
-  if (redis) {
-    try {
-      const rateKey = `ratelimit:tmdb:${ip}`;
-      const currentRequests = await redis.incr(rateKey);
-      if (currentRequests === 1) {
-        await redis.expire(rateKey, 60);
-      }
-      if (currentRequests > 120) {
-        return NextResponse.json(
-          { error: "Too Many Requests" },
-          { status: 429 },
-        );
-      }
-    } catch (err) {
-      console.warn("Redis rate limit hatası:", err);
-    }
-  }
-
   const { searchParams } = new URL(request.url);
   const endpoint = searchParams.get("endpoint");
 
@@ -67,6 +42,29 @@ export async function GET(request: NextRequest) {
       { error: "Endpoint not allowed." },
       { status: 403 },
     );
+  }
+
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+    request.headers.get("x-real-ip") ||
+    "unknown";
+
+  if (redis) {
+    try {
+      const rateKey = `ratelimit:tmdb:${ip}`;
+      const currentRequests = await redis.incr(rateKey);
+      if (currentRequests === 1) {
+        await redis.expire(rateKey, 60);
+      }
+      if (currentRequests > 300) {
+        return NextResponse.json(
+          { error: "Too Many Requests" },
+          { status: 429 },
+        );
+      }
+    } catch (err) {
+      console.warn("Redis rate limit hatası:", err);
+    }
   }
 
   const targetUrl = new URL(`${TMDB_BASE_URL}${endpoint}`);
@@ -103,7 +101,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const res = await fetch(targetUrl.toString());
+    const res = await fetch(targetUrl.toString(), {
+      next: { revalidate: 86400 },
+    });
 
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
