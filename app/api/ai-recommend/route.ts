@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createGroq } from "@ai-sdk/groq";
 import { generateObject } from "ai";
 import { z } from "zod";
-import { redis } from "@/lib/redis";
+import { supabase } from "@/lib/supabase";
 
 interface ItemRef {
   title?: string;
@@ -20,56 +20,37 @@ interface CandidateItem {
   first_air_date?: string;
   vote_average?: number;
   overview?: string;
+  reason?: string;
   [key: string]: unknown;
 }
 
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-});
-
-const mediaItemInputSchema = z.object({
-  id: z.union([z.number(), z.string()]).optional(),
-  title: z.string().max(300).optional(),
-  name: z.string().max(300).optional(),
-  media_type: z.enum(["movie", "tv"]).optional(),
+const groq = createGroq({
+  apiKey: process.env.GROQ_API_KEY,
 });
 
 const requestSchema = z.object({
-  watchlist: z.array(mediaItemInputSchema).max(30).default([]),
-  favorites: z.array(mediaItemInputSchema).max(30).default([]),
-  loggedKeys: z.array(z.string().max(60)).max(5000).default([]),
+  watchlist: z.array(z.any()).max(30).default([]),
+  favorites: z.array(z.any()).max(30).default([]),
+  loggedKeys: z.array(z.string()).max(5000).default([]),
 });
 
 export async function POST(req: Request) {
   try {
-    // Middleware'den gelen user_id okunur
-    const userId = req.headers.get("x-user-id");
-    if (!userId) {
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Yetkisiz erişim." }, { status: 401 });
+    }
+    const token = authHeader.split(" ")[1];
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
       return NextResponse.json(
-        { error: "Oturum verisi alınamadı." },
+        { error: "Geçersiz veya süresi dolmuş oturum." },
         { status: 401 },
       );
-    }
-
-    if (redis) {
-      try {
-        const rateKey = `ratelimit:ai:${userId}`;
-        const currentRequests = await redis.incr(rateKey);
-        if (currentRequests === 1) {
-          await redis.expire(rateKey, 60);
-        }
-        if (currentRequests > 5) {
-          return NextResponse.json(
-            {
-              error:
-                "Çok fazla istek gönderdiniz. Lütfen 1 dakika sonra tekrar deneyin.",
-            },
-            { status: 429 },
-          );
-        }
-      } catch (err) {
-        console.warn("Redis AI rate limit hatası:", err);
-      }
     }
 
     const body = await req.json().catch(() => ({}));
@@ -77,7 +58,7 @@ export async function POST(req: Request) {
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: "Geçersiz istek parametreleri veya sınır aşımı." },
+        { error: "Geçersiz istek veya limit aşıldı." },
         { status: 400 },
       );
     }
@@ -93,8 +74,9 @@ export async function POST(req: Request) {
       });
     }
 
-    const pass1Result = await generateObject({
-      model: google("gemini-2.5-flash"),
+    // Tek aşamalı (Single-Pass) optimizasyon: İsimleri ve gerekçeleri aynı anda alıyoruz.
+    const result = await generateObject({
+      model: groq("llama-3.3-70b-versatile"),
       schema: z.object({
         keywords: z
           .array(z.string())
@@ -108,6 +90,11 @@ export async function POST(req: Request) {
                   "Exact official title of the recommended movie or tv show",
                 ),
               media_type: z.enum(["movie", "tv"]).describe("Type of media"),
+              reason: z
+                .string()
+                .describe(
+                  "1 concise personalized sentence in Turkish explaining exactly why it matches the user's taste",
+                ),
             }),
           )
           .describe(
@@ -122,15 +109,12 @@ Watchlist: ${JSON.stringify(watchlist.map((w: ItemRef) => w.title || w.name))}
 2. Recommend 15 REAL, non-niche, highly acclaimed movies or TV shows that match this taste. Do NOT recommend fan-made videos, documentaries, or obscure vintage titles unless specifically requested.`,
     });
 
-    const keywords = pass1Result.object.keywords || [
-      "sci-fi",
-      "thriller",
-      "drama",
-    ];
-    const rawSuggestions = pass1Result.object.suggestions || [];
+    const keywords = result.object.keywords || ["sci-fi", "thriller", "drama"];
+    const rawSuggestions = result.object.suggestions || [];
     const tmdbApiKey = process.env.TMDB_API_KEY;
     const loggedSet = new Set<string>(loggedKeys);
 
+    // TMDB Doğrulaması: Hayal ürünü filmleri elerken gerekçeleri koruyoruz
     const searchPromises = rawSuggestions.map(async (sug) => {
       try {
         const searchType = sug.media_type === "tv" ? "tv" : "movie";
@@ -140,7 +124,7 @@ Watchlist: ${JSON.stringify(watchlist.map((w: ItemRef) => w.title || w.name))}
         const data = await res.json();
         const firstResult = data.results?.[0];
         if (!firstResult) return null;
-        return { ...firstResult, media_type: searchType };
+        return { ...firstResult, media_type: searchType, reason: sug.reason };
       } catch {
         return null;
       }
@@ -158,6 +142,7 @@ Watchlist: ${JSON.stringify(watchlist.map((w: ItemRef) => w.title || w.name))}
 
     let candidateList = Array.from(candidatesMap.values());
 
+    // 10'dan az sonuç çıkarsa TMDB Trending ile tamamla
     if (candidateList.length < 10) {
       try {
         const fallbackRes = await fetch(
@@ -172,8 +157,14 @@ Watchlist: ${JSON.stringify(watchlist.map((w: ItemRef) => w.title || w.name))}
           const uniqueKey = `${mediaType}_${fbItem.id}`;
 
           if (!loggedSet.has(uniqueKey) && !candidatesMap.has(uniqueKey)) {
-            candidatesMap.set(uniqueKey, { ...fbItem, media_type: mediaType });
-            candidateList.push({ ...fbItem, media_type: mediaType });
+            const fallbackItem = {
+              ...fbItem,
+              media_type: mediaType,
+              reason:
+                "Profilinizdeki yapıma ek olarak bu hafta popüler olduğu için listeye eklendi.",
+            };
+            candidatesMap.set(uniqueKey, fallbackItem);
+            candidateList.push(fallbackItem);
           }
         }
       } catch (e) {
@@ -191,59 +182,17 @@ Watchlist: ${JSON.stringify(watchlist.map((w: ItemRef) => w.title || w.name))}
       });
     }
 
-    const candidatesContext = candidateList.map((c) => ({
-      key: `${c.media_type}_${c.id}`,
+    const recommendedItems = candidateList.map((c) => ({
+      id: c.id,
       title: c.title || c.name,
-      media_type: c.media_type,
+      media_type: c.media_type as "movie" | "tv",
+      poster_path: c.poster_path,
+      release_date: c.release_date,
+      first_air_date: c.first_air_date,
+      vote_average: c.vote_average,
       overview: c.overview,
+      reason: c.reason || "Profilinizdeki tercihlere göre özel önerildi.",
     }));
-
-    const pass2Result = await generateObject({
-      model: google("gemini-2.5-flash"),
-      schema: z.object({
-        reasons: z.array(
-          z.object({
-            key: z
-              .string()
-              .describe('Unique identifier format "movie_ID" or "tv_ID"'),
-            reason: z
-              .string()
-              .describe(
-                "1 concise personalized sentence in Turkish explaining why it matches user taste",
-              ),
-          }),
-        ),
-      }),
-      prompt: `User's top favorites: ${JSON.stringify(favorites.map((f: ItemRef) => f.title || f.name))}.
-Selected candidates: ${JSON.stringify(candidatesContext)}.
-
-For EACH candidate, explain in EXACTLY 1 concise sentence in TURKISH why it matches the user's taste.`,
-    });
-
-    const reasonsMap = (pass2Result.object.reasons || []).reduce(
-      (acc, curr) => {
-        acc[curr.key] = curr.reason;
-        return acc;
-      },
-      {} as Record<string, string>,
-    );
-
-    const recommendedItems = candidateList.map((c) => {
-      const uniqueKey = `${c.media_type}_${c.id}`;
-      return {
-        id: c.id,
-        title: c.title || c.name,
-        media_type: c.media_type as "movie" | "tv",
-        poster_path: c.poster_path,
-        release_date: c.release_date,
-        first_air_date: c.first_air_date,
-        vote_average: c.vote_average,
-        overview: c.overview,
-        reason:
-          reasonsMap[uniqueKey] ||
-          "Profilinizdeki tercihlere göre özel önerildi.",
-      };
-    });
 
     return NextResponse.json({
       rationale:
