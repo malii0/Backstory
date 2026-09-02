@@ -5,24 +5,28 @@ const getRedisClient = (): Redis | null => {
   if (!redisUrl) return null;
 
   try {
-    return new Redis(redisUrl, {
+    const client = new Redis(redisUrl, {
       maxRetriesPerRequest: 1,
-      connectTimeout: 7000,
-      lazyConnect: true,
+      connectTimeout: 10000,
       enableOfflineQueue: false,
       retryStrategy(times) {
         if (times > 2) return null;
         return Math.min(times * 200, 1000);
       },
     });
+
+    client.on("error", (err) => {
+      console.error("Redis client internal error:", err);
+    });
+
+    return client;
   } catch (err) {
-    console.warn("Redis başlatılamadı:", err);
+    console.error("Redis baslatilamadi:", err);
     return null;
   }
 };
 
 declare global {
-  // eslint-disable-next-line no-var
   var redisClient: Redis | null | undefined;
 }
 
