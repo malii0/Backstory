@@ -21,7 +21,7 @@ export function useMediaLogs(
       try {
         const cached = localStorage.getItem("backstory_offline_logs");
         if (cached) return JSON.parse(cached);
-      } catch (e) {}
+      } catch {}
     }
     return {};
   });
@@ -45,9 +45,7 @@ export function useMediaLogs(
     }
   }, [logs]);
 
-  const [prevAuth, setPrevAuth] = useState(isAuthenticated);
-  if (isAuthenticated !== prevAuth) {
-    setPrevAuth(isAuthenticated);
+  useEffect(() => {
     if (!isAuthenticated) {
       setLogs({});
       if (typeof window !== "undefined") {
@@ -55,7 +53,7 @@ export function useMediaLogs(
       }
       setIsLogsLoading(false);
     }
-  }
+  }, [isAuthenticated]);
 
   const fetchRequestIdRef = useRef(0);
 
@@ -89,8 +87,10 @@ export function useMediaLogs(
       } = await supabase.auth.getUser();
       if (!user) return;
 
+      const channelId = `media_logs_changes_${user.id}_${Math.random().toString(36).substring(2, 9)}`;
+
       channel = supabase
-        .channel("media_logs_changes")
+        .channel(channelId)
         .on(
           "postgres_changes",
           {

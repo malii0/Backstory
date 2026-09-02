@@ -9,8 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@ai-sdk/google": "4.0.34",
-    "@ai-sdk/groq": "^4.0.37",
+    "@ai-sdk/groq": "4.0.37",
     "@supabase/supabase-js": "2.111.0",
     "@vercel/analytics": "2.0.1",
     "@vercel/speed-insights": "2.0.0",
@@ -21,7 +20,6 @@
     "postcss": "8.5.25",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "sharp": "0.35.0",
     "zod": "4.4.3"
   },
   "devDependencies": {
@@ -36,11 +34,9 @@
   },
   "overrides": {
     "postcss": "$postcss",
-    "sharp": "0.35.0",
     "brace-expansion": "2.1.4"
   },
   "allowScripts": {
-    "sharp@0.35.0": true,
     "unrs-resolver@1.12.2": true
   }
 }

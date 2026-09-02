@@ -45,27 +45,28 @@ export async function GET(request: NextRequest) {
   }
 
   const ip =
+    request.headers.get("x-vercel-forwarded-for") ||
     request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
     request.headers.get("x-real-ip") ||
     "unknown";
 
-  if (redis) {
-    try {
-      const rateKey = `ratelimit:tmdb:${ip}`;
-      const currentRequests = await redis.incr(rateKey);
-      if (currentRequests === 1) {
-        await redis.expire(rateKey, 60);
-      }
-      if (currentRequests > 300) {
-        return NextResponse.json(
-          { error: "Too Many Requests" },
-          { status: 429 },
-        );
-      }
-    } catch (err) {
-      console.warn("Redis rate limit hatası:", err);
-    }
+  if (!redis) {
+    return NextResponse.json(
+      { error: "Service Unavailable: Rate limiter not configured." },
+      { status: 503 },
+    );
   }
+
+  try {
+    const rateKey = `ratelimit:tmdb:${ip}`;
+    const currentRequests = await redis.incr(rateKey);
+    if (currentRequests === 1) {
+      await redis.expire(rateKey, 60);
+    }
+    if (currentRequests > 300) {
+      return NextResponse.json({ error: "Too Many Requests" }, { status: 429 });
+    }
+  } catch {}
 
   const targetUrl = new URL(`${TMDB_BASE_URL}${endpoint}`);
   targetUrl.searchParams.append("api_key", TMDB_API_KEY);
@@ -83,22 +84,18 @@ export async function GET(request: NextRequest) {
 
   const cacheKey = `tmdb:${endpoint}?${cacheParams.toString()}`;
 
-  if (redis) {
-    try {
-      const cachedData = await redis.get(cacheKey);
-      if (cachedData) {
-        return NextResponse.json(JSON.parse(cachedData), {
-          headers: {
-            "X-Cache": "HIT",
-            "Cache-Control":
-              "public, s-maxage=86400, stale-while-revalidate=43200",
-          },
-        });
-      }
-    } catch (err) {
-      console.warn("Redis okuma hatası:", err);
+  try {
+    const cachedData = await redis.get(cacheKey);
+    if (cachedData) {
+      return NextResponse.json(JSON.parse(cachedData), {
+        headers: {
+          "X-Cache": "HIT",
+          "Cache-Control":
+            "public, s-maxage=86400, stale-while-revalidate=43200",
+        },
+      });
     }
-  }
+  } catch {}
 
   try {
     const res = await fetch(targetUrl.toString(), {
@@ -115,13 +112,9 @@ export async function GET(request: NextRequest) {
 
     const data = await res.json();
 
-    if (redis) {
-      try {
-        await redis.set(cacheKey, JSON.stringify(data), "EX", 86400);
-      } catch (err) {
-        console.warn("Redis yazma hatası:", err);
-      }
-    }
+    try {
+      await redis.set(cacheKey, JSON.stringify(data), "EX", 86400);
+    } catch {}
 
     return NextResponse.json(data, {
       headers: {

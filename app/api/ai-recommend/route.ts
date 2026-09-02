@@ -3,6 +3,7 @@ import { createGroq } from "@ai-sdk/groq";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { supabase } from "@/lib/supabase";
+import { redis } from "@/lib/redis";
 
 interface ItemRef {
   title?: string;
@@ -28,27 +29,49 @@ const groq = createGroq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
+const mediaItemInputSchema = z
+  .object({
+    title: z.string().max(300).optional(),
+    name: z.string().max(300).optional(),
+    media_type: z.enum(["movie", "tv"]).optional(),
+    id: z.union([z.number(), z.string()]).optional(),
+  })
+  .passthrough();
+
 const requestSchema = z.object({
-  watchlist: z.array(z.any()).max(30).default([]),
-  favorites: z.array(z.any()).max(30).default([]),
-  loggedKeys: z.array(z.string()).max(5000).default([]),
+  watchlist: z.array(mediaItemInputSchema).max(30).default([]),
+  favorites: z.array(mediaItemInputSchema).max(30).default([]),
+  loggedKeys: z.array(z.string().max(60)).max(5000).default([]),
 });
 
 export async function POST(req: Request) {
   try {
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Yetkisiz erişim." }, { status: 401 });
-    }
-    const token = authHeader.split(" ")[1];
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
+    const ip =
+      req.headers.get("x-vercel-forwarded-for") ||
+      req.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
 
-    if (authError || !user) {
+    if (!redis) {
       return NextResponse.json(
-        { error: "Geçersiz veya süresi dolmuş oturum." },
+        { error: "Service Unavailable: Rate limiter not configured." },
+        { status: 503 },
+      );
+    }
+
+    const rateKey = `ratelimit:ai:${ip}`;
+    const currentRequests = await redis.incr(rateKey);
+    if (currentRequests === 1) {
+      await redis.expire(rateKey, 86400);
+    }
+    if (currentRequests > 50) {
+      return NextResponse.json({ error: "Too Many Requests" }, { status: 429 });
+    }
+
+    const userId = req.headers.get("x-user-id");
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Yetkisiz erişim. Geçersiz oturum." },
         { status: 401 },
       );
     }
@@ -74,9 +97,8 @@ export async function POST(req: Request) {
       });
     }
 
-    // Tek aşamalı (Single-Pass) optimizasyon: İsimleri ve gerekçeleri aynı anda alıyoruz.
     const result = await generateObject({
-      model: groq("llama-3.3-70b-versatile"),
+      model: groq("openai/gpt-oss-120b"),
       schema: z.object({
         keywords: z
           .array(z.string())
@@ -114,7 +136,6 @@ Watchlist: ${JSON.stringify(watchlist.map((w: ItemRef) => w.title || w.name))}
     const tmdbApiKey = process.env.TMDB_API_KEY;
     const loggedSet = new Set<string>(loggedKeys);
 
-    // TMDB Doğrulaması: Hayal ürünü filmleri elerken gerekçeleri koruyoruz
     const searchPromises = rawSuggestions.map(async (sug) => {
       try {
         const searchType = sug.media_type === "tv" ? "tv" : "movie";
@@ -142,7 +163,6 @@ Watchlist: ${JSON.stringify(watchlist.map((w: ItemRef) => w.title || w.name))}
 
     let candidateList = Array.from(candidatesMap.values());
 
-    // 10'dan az sonuç çıkarsa TMDB Trending ile tamamla
     if (candidateList.length < 10) {
       try {
         const fallbackRes = await fetch(
@@ -167,9 +187,7 @@ Watchlist: ${JSON.stringify(watchlist.map((w: ItemRef) => w.title || w.name))}
             candidateList.push(fallbackItem);
           }
         }
-      } catch (e) {
-        console.error("Fallback fetch error:", e);
-      }
+      } catch {}
     }
 
     candidateList = candidateList.slice(0, 10);
@@ -200,8 +218,7 @@ Watchlist: ${JSON.stringify(watchlist.map((w: ItemRef) => w.title || w.name))}
       matchedKeywords: keywords,
       recommendedItems,
     });
-  } catch (error: unknown) {
-    console.error("AI RECOMMEND API ERROR DETAILS:", error);
+  } catch {
     return NextResponse.json(
       {
         error:

@@ -230,20 +230,11 @@ export const updateUserProfile = async (
     return { success: false, error: "Kullanıcı oturumu bulunamadı." };
   }
 
-  const { data: existingUser } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("username", username)
-    .neq("id", user.id)
-    .maybeSingle();
-
-  if (existingUser) {
-    return { success: false, error: "Bu kullanıcı adı zaten alınmış." };
-  }
+  const cleanUsername = username.trim().toLowerCase();
 
   const profileRow: Database["public"]["Tables"]["profiles"]["Insert"] = {
     id: user.id,
-    username: username,
+    username: cleanUsername,
     display_name: displayName,
     avatar_url: avatarUrl,
     is_public: isPublic,
@@ -255,7 +246,10 @@ export const updateUserProfile = async (
     .upsert(profileRow as never, { onConflict: "id" });
 
   if (error) {
-    return { success: false, error: error.message };
+    if (error.code === "23505") {
+      return { success: false, error: "Bu kullanıcı adı zaten alınmış." };
+    }
+    return { success: false, error: "Güncelleme başarısız oldu." };
   }
 
   return { success: true };
@@ -264,7 +258,6 @@ export const updateUserProfile = async (
 export const fetchActivityFeed = async (
   limit = 30,
 ): Promise<ActivityFeedItem[]> => {
-  // Yalnızca profili herkese açık (is_public = true) olan kullanıcıların ID'lerini çek
   const { data: publicProfiles } = await supabase
     .from("profiles")
     .select("*")
@@ -313,11 +306,19 @@ export const fetchActivityFeed = async (
 export const fetchProfileByUsername = async (
   username: string,
 ): Promise<UserProfile | null> => {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("username", username)
-    .maybeSingle();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let query = supabase.from("profiles").select("*").eq("username", username);
+
+  if (user) {
+    query = query.or(`is_public.eq.true,id.eq.${user.id}`);
+  } else {
+    query = query.eq("is_public", true);
+  }
+
+  const { data, error } = await query.maybeSingle();
 
   if (error || !data) return null;
 
@@ -335,6 +336,21 @@ export const fetchProfileByUsername = async (
 export const fetchPublicLogs = async (
   userId: string,
 ): Promise<Record<string, LogMetadata>> => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user || user.id !== userId) {
+    const { data } = await supabase
+      .from("profiles")
+      .select("is_public")
+      .eq("id", userId)
+      .eq("is_public", true)
+      .maybeSingle();
+
+    if (!data) return {};
+  }
+
   const { data, error } = await supabase
     .from("media_logs")
     .select("*")
