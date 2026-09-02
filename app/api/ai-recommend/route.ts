@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createGroq } from "@ai-sdk/groq";
 import { generateObject } from "ai";
 import { z } from "zod";
-import { supabase } from "@/lib/supabase";
 import { redis } from "@/lib/redis";
 
 interface ItemRef {
@@ -54,18 +53,36 @@ export async function POST(req: Request) {
 
     if (!redis) {
       return NextResponse.json(
-        { error: "Service Unavailable: Rate limiter not configured." },
+        {
+          error:
+            "Öneri servisi şu anda geçici olarak kullanılamıyor. Lütfen birkaç dakika sonra tekrar deneyin.",
+        },
         { status: 503 },
       );
     }
 
     const rateKey = `ratelimit:ai:${ip}`;
-    const currentRequests = await redis.incr(rateKey);
-    if (currentRequests === 1) {
-      await redis.expire(rateKey, 86400);
-    }
-    if (currentRequests > 50) {
-      return NextResponse.json({ error: "Too Many Requests" }, { status: 429 });
+
+    try {
+      const currentRequests = await redis.incr(rateKey);
+      if (currentRequests === 1) {
+        await redis.expire(rateKey, 86400);
+      }
+      if (currentRequests > 50) {
+        return NextResponse.json(
+          { error: "Too Many Requests" },
+          { status: 429 },
+        );
+      }
+    } catch (redisError) {
+      console.error("AI RATE LIMIT REDIS ERROR:", redisError);
+      return NextResponse.json(
+        {
+          error:
+            "Öneri servisi şu anda geçici olarak kullanılamıyor. Lütfen birkaç dakika sonra tekrar deneyin.",
+        },
+        { status: 503 },
+      );
     }
 
     const userId = req.headers.get("x-user-id");
