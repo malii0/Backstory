@@ -7,9 +7,13 @@ const getRedisClient = (): Redis | null => {
   try {
     return new Redis(redisUrl, {
       maxRetriesPerRequest: 1,
-      connectTimeout: 2000,
+      connectTimeout: 7000,
       lazyConnect: true,
       enableOfflineQueue: false,
+      retryStrategy(times) {
+        if (times > 2) return null;
+        return Math.min(times * 200, 1000);
+      },
     });
   } catch (err) {
     console.warn("Redis başlatılamadı:", err);
