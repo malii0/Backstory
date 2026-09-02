@@ -87,7 +87,9 @@ export async function GET(request: NextRequest) {
   try {
     const cachedData = await redis.get(cacheKey);
     if (cachedData) {
-      return NextResponse.json(JSON.parse(cachedData), {
+      const parsedData =
+        typeof cachedData === "string" ? JSON.parse(cachedData) : cachedData;
+      return NextResponse.json(parsedData, {
         headers: {
           "X-Cache": "HIT",
           "Cache-Control":
@@ -113,7 +115,7 @@ export async function GET(request: NextRequest) {
     const data = await res.json();
 
     try {
-      await redis.set(cacheKey, JSON.stringify(data), "EX", 86400);
+      await redis.set(cacheKey, JSON.stringify(data), { ex: 86400 });
     } catch {}
 
     return NextResponse.json(data, {
