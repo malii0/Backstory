@@ -105,6 +105,7 @@ export interface UserProfile {
   displayName: string;
   avatarUrl: string;
   isPublic?: boolean;
+  hasSeenAnnouncement?: boolean;
 }
 
 export interface PublicMemberItem {

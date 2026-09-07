@@ -29,3 +29,10 @@ export const GENRES_LIST = [
     tvIds: [9648],
   },
 ];
+
+export const GENRE_ID_TO_NAME_MAP = new Map<number, string>();
+
+GENRES_LIST.forEach((genre) => {
+  genre.movieIds.forEach((id) => GENRE_ID_TO_NAME_MAP.set(id, genre.name));
+  genre.tvIds.forEach((id) => GENRE_ID_TO_NAME_MAP.set(id, genre.name));
+});

@@ -50,14 +50,13 @@ import {
   saveBulkLogsToSupabase,
   deleteBulkLogsFromSupabase,
   fetchActivityFeed,
+  markAnnouncementSeen,
 } from "@/lib/db";
 import { useAuth } from "@/hooks/useAuth";
 import { useMediaLogs } from "@/hooks/useMediaLogs";
 import { useTmdbExplore, DEFAULT_YEAR_RANGE } from "@/hooks/useTmdbExplore";
 import { useRecommendations } from "@/hooks/useRecommendations";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
-
-const LATEST_ANNOUNCEMENT_ID = "v1_profiles_privacy_2026_08";
 
 function TabParamHandler({ onTabMatch }: { onTabMatch: () => void }) {
   const searchParams = useSearchParams();
@@ -213,41 +212,93 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (!auth.isAuthenticated || auth.isAuthLoading) return;
-
-    const seenAnnouncement = localStorage.getItem(
-      "backstory_announcement_seen",
-    );
-    if (seenAnnouncement !== LATEST_ANNOUNCEMENT_ID) {
-      setIsAnnouncementOpen(true);
+    if (auth.isAuthLoading || !auth.isAuthenticated || auth.isRecoveryFlow) {
+      setIsAnnouncementOpen(false);
+      return;
     }
-  }, [auth.isAuthenticated, auth.isAuthLoading]);
 
-  const handleCloseAnnouncement = () => {
-    localStorage.setItem("backstory_announcement_seen", LATEST_ANNOUNCEMENT_ID);
+    if (auth.userProfile && auth.userProfile.hasSeenAnnouncement === false) {
+      setIsAnnouncementOpen(true);
+    } else {
+      setIsAnnouncementOpen(false);
+    }
+  }, [
+    auth.isAuthenticated,
+    auth.isAuthLoading,
+    auth.isRecoveryFlow,
+    auth.userProfile,
+  ]);
+
+  const handleCloseAnnouncement = async () => {
+    await markAnnouncementSeen();
+    await auth.loadProfile();
     setIsAnnouncementOpen(false);
   };
 
+  const scrollTickingRef = useRef(false);
+
   useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
+    const onScroll = () => {
+      if (scrollTickingRef.current) return;
+      scrollTickingRef.current = true;
 
-      setShowFab(currentScrollY > 200);
+      window.requestAnimationFrame(() => {
+        const currentScrollY = window.scrollY;
 
-      if (currentScrollY < 50) {
-        setIsHeaderHidden(false);
-      } else if (currentScrollY > lastScrollY.current) {
-        setIsHeaderHidden(true);
-      } else if (currentScrollY < lastScrollY.current) {
-        setIsHeaderHidden(false);
-      }
+        setShowFab(currentScrollY > 200);
 
-      lastScrollY.current = currentScrollY;
+        if (currentScrollY < 50) {
+          setIsHeaderHidden(false);
+        } else if (currentScrollY > lastScrollY.current) {
+          setIsHeaderHidden(true);
+        } else if (currentScrollY < lastScrollY.current) {
+          setIsHeaderHidden(false);
+        }
+
+        lastScrollY.current = currentScrollY;
+
+        if (activeTab === "explore") {
+          const docEl = document.documentElement;
+          if (window.innerHeight + currentScrollY >= docEl.offsetHeight - 500) {
+            if (explore.exploreMode === "personalized") {
+              if (
+                !recommendations.isFetchingMore &&
+                !recommendations.isLoading &&
+                recommendations.hasMore
+              ) {
+                recommendations.loadMore();
+              }
+            } else {
+              if (
+                !explore.isLoading &&
+                !explore.isFetchingMore &&
+                explore.hasMore
+              ) {
+                explore.fetchContent(explore.page + 1);
+              }
+            }
+          }
+        }
+
+        scrollTickingRef.current = false;
+      });
     };
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [
+    activeTab,
+    explore.exploreMode,
+    explore.isLoading,
+    explore.isFetchingMore,
+    explore.hasMore,
+    explore.page,
+    explore.fetchContent,
+    recommendations.isFetchingMore,
+    recommendations.isLoading,
+    recommendations.hasMore,
+    recommendations.loadMore,
+  ]);
 
   useEffect(() => {
     if (activeTab !== "feed" || !auth.isAuthenticated) return;
@@ -362,34 +413,6 @@ export default function Home() {
       await saveBulkLogsToSupabase(updatesToSave);
     }
   };
-
-  const handleScroll = useCallback(() => {
-    if (activeTab !== "explore") return;
-
-    if (
-      window.innerHeight + document.documentElement.scrollTop >=
-      document.documentElement.offsetHeight - 500
-    ) {
-      if (explore.exploreMode === "personalized") {
-        if (
-          !recommendations.isFetchingMore &&
-          !recommendations.isLoading &&
-          recommendations.hasMore
-        ) {
-          recommendations.loadMore();
-        }
-      } else {
-        if (!explore.isLoading && !explore.isFetchingMore && explore.hasMore) {
-          explore.fetchContent(explore.page + 1);
-        }
-      }
-    }
-  }, [activeTab, explore, recommendations]);
-
-  useEffect(() => {
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [handleScroll]);
 
   const fetchDetails = useCallback(async () => {
     if (!selectedItem) {
@@ -555,10 +578,8 @@ export default function Home() {
       <AuthModal
         isOpen={auth.isAuthModalOpen}
         isInviteMode={auth.isInviteMode}
-        onSuccess={(isNewUser) => {
-          auth.setIsAuthModalOpen(false);
-          auth.setIsInviteMode(false);
-          auth.loadProfile();
+        onSuccess={async (isNewUser) => {
+          await auth.finishRecoveryFlow();
           if (isNewUser) {
             setActiveTab("settings");
           }

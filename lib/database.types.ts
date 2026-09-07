@@ -42,6 +42,7 @@ export interface Database {
           avatar_url: string | null;
           updated_at: string;
           is_public?: boolean | null;
+          has_seen_announcement?: boolean | null;
         };
         Insert: {
           id: string;
@@ -50,6 +51,7 @@ export interface Database {
           avatar_url?: string | null;
           updated_at?: string;
           is_public?: boolean | null;
+          has_seen_announcement?: boolean | null;
         };
         Update: Partial<Database["public"]["Tables"]["profiles"]["Insert"]>;
       };

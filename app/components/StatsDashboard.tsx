@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
 import Image from "next/image";
 import { LogMetadata, MediaItem, UserProfile } from "@/lib/types";
 import { getEffectiveWatchCount } from "@/lib/utils";
-import { GENRES_LIST, STATS_TIER_THRESHOLDS } from "@/lib/constants";
+import { STATS_TIER_THRESHOLDS, GENRE_ID_TO_NAME_MAP } from "@/lib/constants";
 import AIRecommendationsSection from "@/app/components/AIRecommendationsSection";
 import {
   Star,
@@ -137,12 +137,9 @@ export default function StatsDashboard({
     const genreCounts: Record<string, number> = {};
     completedLogs.forEach((l) => {
       l.itemData?.genre_ids?.forEach((tmdbId) => {
-        const matchedCategory = GENRES_LIST.find(
-          (g) => g.movieIds.includes(tmdbId) || g.tvIds.includes(tmdbId),
-        );
-        if (matchedCategory) {
-          genreCounts[matchedCategory.name] =
-            (genreCounts[matchedCategory.name] || 0) + 1;
+        const genreName = GENRE_ID_TO_NAME_MAP.get(tmdbId);
+        if (genreName) {
+          genreCounts[genreName] = (genreCounts[genreName] || 0) + 1;
         } else {
           genreCounts["Diğer"] = (genreCounts["Diğer"] || 0) + 1;
         }

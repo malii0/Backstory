@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Sparkles, Shield, User, X, Check } from "lucide-react";
 import { updateUserProfile } from "@/lib/db";
 import { UserProfile } from "@/lib/types";
@@ -21,20 +21,32 @@ export default function AnnouncementModal({
   const [isPublic, setIsPublic] = useState(userProfile?.isPublic ?? false);
   const [loading, setLoading] = useState(false);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (isOpen && userProfile?.isPublic !== undefined) {
+      setIsPublic(userProfile.isPublic);
+    }
+  }, [isOpen, userProfile?.isPublic]);
+
+  if (!isOpen || !userProfile) return null;
+
+  const handleDismiss = () => {
+    if (loading) return;
+    setIsPublic(userProfile.isPublic ?? false);
+    onClose();
+  };
 
   const handleSaveAndClose = async () => {
-    if (userProfile && isPublic !== userProfile.isPublic) {
-      setLoading(true);
+    setLoading(true);
+    if (isPublic !== userProfile.isPublic) {
       await updateUserProfile(
         userProfile.username,
         userProfile.displayName,
         userProfile.avatarUrl,
         isPublic,
       );
-      setLoading(false);
       await onProfileUpdated();
     }
+    setLoading(false);
     onClose();
   };
 
@@ -42,8 +54,9 @@ export default function AnnouncementModal({
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div className="w-full max-w-md bg-card border border-border rounded-3xl p-6 shadow-2xl space-y-5 relative">
         <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 text-muted-foreground hover:text-foreground bg-muted/60 rounded-full transition-colors"
+          onClick={handleDismiss}
+          disabled={loading}
+          className="absolute top-4 right-4 p-1.5 text-muted-foreground hover:text-foreground bg-muted/60 rounded-full transition-colors cursor-pointer disabled:opacity-50"
         >
           <X className="w-4 h-4" />
         </button>
@@ -88,7 +101,6 @@ export default function AnnouncementModal({
           </div>
         </div>
 
-        {/* Hızlı Aksiyon Kutusu */}
         <div className="flex items-center justify-between p-3.5 rounded-2xl border border-border bg-background/80">
           <div>
             <p className="text-xs font-bold text-foreground">

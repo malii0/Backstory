@@ -8,7 +8,12 @@ import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, LayoutGrid, Bookmark } from "lucide-react";
 
 import { UserProfile, LogMetadata, MediaItem, MediaDetail } from "@/lib/types";
-import { fetchProfileByUsername, fetchPublicLogs } from "@/lib/db";
+import {
+  fetchProfileByUsername,
+  fetchPublicLogs,
+  deleteBulkLogsFromSupabase,
+  saveBulkLogsToSupabase,
+} from "@/lib/db";
 import MediaCard from "@/app/components/MediaCard";
 import DetailDrawer from "@/app/components/DetailDrawer";
 import SkeletonGrid from "@/app/components/SkeletonGrid";
@@ -94,6 +99,44 @@ export default function PublicProfilePage() {
 
     loadData();
   }, [username, auth.isAuthLoading, auth.isAuthenticated, auth.userProfile]);
+
+  const handleUndo = async () => {
+    const restored = myLogsManager.previousLogsRef.current;
+    if (!restored) return;
+
+    const currentLogs = myLogsManager.logs;
+    myLogsManager.setLogs(restored);
+    setToasts([]);
+    myLogsManager.previousLogsRef.current = null;
+
+    const allKeys = new Set([
+      ...Object.keys(restored),
+      ...Object.keys(currentLogs),
+    ]);
+
+    const keysToDelete: string[] = [];
+    const updatesToSave: { key: string; log: LogMetadata }[] = [];
+
+    for (const key of allKeys) {
+      const prevLog = restored[key];
+      const currLog = currentLogs[key];
+
+      if (JSON.stringify(prevLog) !== JSON.stringify(currLog)) {
+        if (prevLog) {
+          updatesToSave.push({ key, log: prevLog });
+        } else {
+          keysToDelete.push(key);
+        }
+      }
+    }
+
+    if (keysToDelete.length > 0) {
+      await deleteBulkLogsFromSupabase(keysToDelete);
+    }
+    if (updatesToSave.length > 0) {
+      await saveBulkLogsToSupabase(updatesToSave);
+    }
+  };
 
   const fetchDetails = useCallback(async () => {
     if (!selectedItem) {
@@ -184,7 +227,11 @@ export default function PublicProfilePage() {
 
   return (
     <main className="min-h-dvh bg-background text-foreground font-sans p-4 sm:p-6 md:p-8 relative pb-10">
-      <ToastList toasts={toasts} onUndo={() => {}} canUndo={false} />
+      <ToastList
+        toasts={toasts}
+        onUndo={handleUndo}
+        canUndo={!!myLogsManager.previousLogsRef.current}
+      />
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="mb-4">
           <button

@@ -58,15 +58,17 @@ export function useTmdbExplore(activeTab: ActiveTab) {
     | "updated_at.desc"
   >("popularity.desc");
 
-  if (
-    exploreMode === "personalized" &&
-    (query.trim() !== "" ||
-      selectedGenreId !== null ||
-      selectedProviderId !== null ||
-      minRating > 0)
-  ) {
-    setExploreMode("standard");
-  }
+  useEffect(() => {
+    if (
+      exploreMode === "personalized" &&
+      (query.trim() !== "" ||
+        selectedGenreId !== null ||
+        selectedProviderId !== null ||
+        minRating > 0)
+    ) {
+      setExploreMode("standard");
+    }
+  }, [exploreMode, query, selectedGenreId, selectedProviderId, minRating]);
 
   useEffect(() => {
     if (query === "") {

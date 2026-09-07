@@ -214,6 +214,7 @@ export const fetchUserProfile = async (): Promise<UserProfile | null> => {
     displayName: profile.display_name || profile.username,
     avatarUrl: profile.avatar_url || "🎬",
     isPublic: profile.is_public ?? false,
+    hasSeenAnnouncement: profile.has_seen_announcement ?? false,
   };
 };
 
@@ -255,6 +256,20 @@ export const updateUserProfile = async (
   return { success: true };
 };
 
+export const markAnnouncementSeen = async (): Promise<boolean> => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ has_seen_announcement: true } as never)
+    .eq("id", user.id);
+
+  return !error;
+};
+
 export const fetchActivityFeed = async (
   limit = 30,
 ): Promise<ActivityFeedItem[]> => {
@@ -276,6 +291,7 @@ export const fetchActivityFeed = async (
       displayName: p.display_name || p.username,
       avatarUrl: p.avatar_url || "🎬",
       isPublic: true,
+      hasSeenAnnouncement: p.has_seen_announcement ?? false,
     });
   });
 
@@ -330,6 +346,7 @@ export const fetchProfileByUsername = async (
     displayName: profile.display_name || profile.username,
     avatarUrl: profile.avatar_url || "🎬",
     isPublic: profile.is_public ?? false,
+    hasSeenAnnouncement: profile.has_seen_announcement ?? false,
   };
 };
 
@@ -370,7 +387,7 @@ export const fetchPublicLogs = async (
 export const fetchPublicMembers = async (): Promise<PublicMemberItem[]> => {
   const { data: profiles, error: pError } = await supabase
     .from("profiles")
-    .select("id, username, avatar_url, is_public")
+    .select("id, username, avatar_url, is_public, has_seen_announcement")
     .eq("is_public", true);
 
   if (pError || !profiles) return [];

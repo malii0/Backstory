@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { LogMetadata, MediaItem, MediaDetail } from "@/lib/types";
+import {
+  LogMetadata,
+  MediaItem,
+  MediaDetail,
+  WatchProviderInfo,
+} from "@/lib/types";
 import {
   fetchLogsFromSupabase,
   saveLogToSupabase,
@@ -274,7 +279,7 @@ export function useMediaLogs(
               if (data) {
                 const trProviders = data.results?.TR?.flatrate;
                 const fetchedProviders = trProviders
-                  ? trProviders.map((p: any) => p.provider_id)
+                  ? trProviders.map((p: WatchProviderInfo) => p.provider_id)
                   : [];
 
                 setLogs((prev) => {
@@ -344,13 +349,25 @@ export function useMediaLogs(
       }
 
       setLogs(updatedLogs);
-      showToast(`${items.length} içerik toplu olarak güncellendi.`);
+
+      let deleteSuccess = true;
+      let saveSuccess = true;
 
       if (keysToDelete.length > 0) {
-        await deleteBulkLogsFromSupabase(keysToDelete);
+        deleteSuccess = await deleteBulkLogsFromSupabase(keysToDelete);
       }
       if (updatesToSave.length > 0) {
-        await saveBulkLogsToSupabase(updatesToSave);
+        saveSuccess = await saveBulkLogsToSupabase(updatesToSave);
+      }
+
+      if (!deleteSuccess || !saveSuccess) {
+        setLogs(previousState);
+        previousLogsRef.current = null;
+        showToast(
+          "Bulut senkronizasyonu başarısız oldu. Değişiklik geri alındı.",
+        );
+      } else {
+        showToast(`${items.length} içerik toplu olarak güncellendi.`);
       }
     },
     [getItemKey, showToast],

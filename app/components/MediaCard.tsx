@@ -266,6 +266,9 @@ export default React.memo(MediaCardComponent, (prev, next) => {
     prev.log?.isCompleted === next.log?.isCompleted &&
     prev.log?.isWatchlist === next.log?.isWatchlist &&
     prev.log?.rating === next.log?.rating &&
-    prev.log?.watchCount === next.log?.watchCount
+    prev.log?.watchCount === next.log?.watchCount &&
+    prev.viewerLog?.isCompleted === next.viewerLog?.isCompleted &&
+    prev.viewerLog?.isWatchlist === next.viewerLog?.isWatchlist &&
+    prev.viewerLog?.rating === next.viewerLog?.rating
   );
 });
