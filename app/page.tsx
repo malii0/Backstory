@@ -29,29 +29,16 @@ import SkeletonGrid from "./components/SkeletonGrid";
 import StatsDashboard from "./components/StatsDashboard";
 import AuthModal from "./components/AuthModal";
 import SettingsPage from "./components/SettingsPage";
-import ActivityFeed from "./components/ActivityFeed";
 import RatingManagerModal from "./components/RatingManagerModal";
 import FilterPanel from "./components/FilterPanel";
 import PrivacyModal from "./components/PrivacyModal";
 import RandomPickModal from "./components/RandomPickModal";
 import ToastList, { ToastItemData } from "./components/ToastList";
-import AnnouncementModal from "./components/AnnouncementModal";
 
 import { GENRES_LIST } from "@/lib/constants";
-import {
-  MediaItem,
-  MediaDetail,
-  LogMetadata,
-  ActiveTab,
-  ActivityFeedItem,
-} from "@/lib/types";
+import { MediaItem, MediaDetail, LogMetadata, ActiveTab } from "@/lib/types";
 import { getEffectiveWatchCount } from "@/lib/utils";
-import {
-  saveBulkLogsToSupabase,
-  deleteBulkLogsFromSupabase,
-  fetchActivityFeed,
-  markAnnouncementSeen,
-} from "@/lib/db";
+import { saveBulkLogsToSupabase, deleteBulkLogsFromSupabase } from "@/lib/db";
 import { useAuth } from "@/hooks/useAuth";
 import { useMediaLogs } from "@/hooks/useMediaLogs";
 import { useTmdbExplore, DEFAULT_YEAR_RANGE } from "@/hooks/useTmdbExplore";
@@ -77,13 +64,8 @@ export default function Home() {
   const [isHeaderHidden, setIsHeaderHidden] = useState(false);
   const lastScrollY = useRef(0);
 
-  const [activityFeed, setActivityFeed] = useState<ActivityFeedItem[]>([]);
-  const [isFeedLoading, setIsFeedLoading] = useState(false);
-  const lastFeedFetchRef = useRef<number>(0);
-
   const [isRatingManagerOpen, setIsRatingManagerOpen] = useState(false);
   const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
-  const [isAnnouncementOpen, setIsAnnouncementOpen] = useState(false);
   const [randomPick, setRandomPick] = useState<MediaItem | null>(null);
 
   const [hideLoggedItems, setHideLoggedItems] = useState(false);
@@ -111,26 +93,6 @@ export default function Home() {
   const logsManager = useMediaLogs(auth.isAuthenticated, showToast);
   const explore = useTmdbExplore(activeTab);
   const recommendations = useRecommendations(logsManager.logs);
-
-  const userWatchedIds = useMemo(() => {
-    const set = new Set<string>();
-    Object.values(logsManager.logs).forEach((log) => {
-      if (log.isCompleted && log.itemData?.id) {
-        set.add(`${log.itemData.media_type || "movie"}_${log.itemData.id}`);
-      }
-    });
-    return set;
-  }, [logsManager.logs]);
-
-  const userWatchlistIds = useMemo(() => {
-    const set = new Set<string>();
-    Object.values(logsManager.logs).forEach((log) => {
-      if (log.isWatchlist && log.itemData?.id) {
-        set.add(`${log.itemData.media_type || "movie"}_${log.itemData.id}`);
-      }
-    });
-    return set;
-  }, [logsManager.logs]);
 
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
   const [detailData, setDetailData] = useState<MediaDetail | null>(null);
@@ -211,30 +173,6 @@ export default function Home() {
     recommendations.fetchRecommendations();
   };
 
-  useEffect(() => {
-    if (auth.isAuthLoading || !auth.isAuthenticated || auth.isRecoveryFlow) {
-      setIsAnnouncementOpen(false);
-      return;
-    }
-
-    if (auth.userProfile && auth.userProfile.hasSeenAnnouncement === false) {
-      setIsAnnouncementOpen(true);
-    } else {
-      setIsAnnouncementOpen(false);
-    }
-  }, [
-    auth.isAuthenticated,
-    auth.isAuthLoading,
-    auth.isRecoveryFlow,
-    auth.userProfile,
-  ]);
-
-  const handleCloseAnnouncement = async () => {
-    await markAnnouncementSeen();
-    await auth.loadProfile();
-    setIsAnnouncementOpen(false);
-  };
-
   const scrollTickingRef = useRef(false);
 
   useEffect(() => {
@@ -301,45 +239,12 @@ export default function Home() {
   ]);
 
   useEffect(() => {
-    if (activeTab !== "feed" || !auth.isAuthenticated) return;
-
-    const now = Date.now();
-    if (now - lastFeedFetchRef.current < 120000 && activityFeed.length > 0) {
-      return;
-    }
-
-    let isMounted = true;
-    const fetchFeed = async () => {
-      setIsFeedLoading(true);
-      try {
-        const feed = await fetchActivityFeed();
-        if (isMounted) {
-          setActivityFeed(feed);
-          lastFeedFetchRef.current = Date.now();
-        }
-      } catch {
-      } finally {
-        if (isMounted) {
-          setIsFeedLoading(false);
-        }
-      }
-    };
-
-    fetchFeed();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [activeTab, auth.isAuthenticated, activityFeed.length]);
-
-  useEffect(() => {
     if (
       selectedItem ||
       randomPick ||
       auth.isAuthModalOpen ||
       isRatingManagerOpen ||
-      isPrivacyModalOpen ||
-      isAnnouncementOpen
+      isPrivacyModalOpen
     ) {
       document.body.style.overflow = "hidden";
     } else {
@@ -354,7 +259,6 @@ export default function Home() {
     auth.isAuthModalOpen,
     isRatingManagerOpen,
     isPrivacyModalOpen,
-    isAnnouncementOpen,
   ]);
 
   useEffect(() => {
@@ -578,11 +482,8 @@ export default function Home() {
       <AuthModal
         isOpen={auth.isAuthModalOpen}
         isInviteMode={auth.isInviteMode}
-        onSuccess={async (isNewUser) => {
+        onSuccess={async () => {
           await auth.finishRecoveryFlow();
-          if (isNewUser) {
-            setActiveTab("settings");
-          }
           if (typeof window !== "undefined") {
             window.history.replaceState(null, "", window.location.pathname);
           }
@@ -594,36 +495,26 @@ export default function Home() {
         onClose={() => setIsPrivacyModalOpen(false)}
       />
 
-      <AnnouncementModal
-        isOpen={isAnnouncementOpen}
-        userProfile={auth.userProfile}
-        onClose={handleCloseAnnouncement}
-        onProfileUpdated={auth.loadProfile}
-      />
-
       <ToastList
         toasts={toasts}
         onUndo={handleUndo}
         canUndo={!!logsManager.previousLogsRef.current}
       />
 
-      {showFab &&
-        activeTab !== "stats" &&
-        activeTab !== "settings" &&
-        activeTab !== "feed" && (
-          <button
-            onClick={() => explore.setShowFilters(true)}
-            className="fixed bottom-6 right-6 z-40 bg-accent text-accent-foreground font-bold px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 border border-accent/30 transition-all transform hover:scale-105 active:scale-95 animate-in fade-in zoom-in-90"
-          >
-            <SlidersHorizontal className="w-4 h-4" />
-            <span className="text-xs">Filtrele & Ara</span>
-            {explore.activeFilterCount > 0 && (
-              <span className="w-5 h-5 bg-background text-accent text-[10px] rounded-full flex items-center justify-center font-black ml-0.5">
-                {explore.activeFilterCount}
-              </span>
-            )}
-          </button>
-        )}
+      {showFab && activeTab !== "stats" && activeTab !== "settings" && (
+        <button
+          onClick={() => explore.setShowFilters(true)}
+          className="fixed bottom-6 right-6 z-40 bg-accent text-accent-foreground font-bold px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 border border-accent/30 transition-all transform hover:scale-105 active:scale-95 animate-in fade-in zoom-in-90"
+        >
+          <SlidersHorizontal className="w-4 h-4" />
+          <span className="text-xs">Filtrele & Ara</span>
+          {explore.activeFilterCount > 0 && (
+            <span className="w-5 h-5 bg-background text-accent text-[10px] rounded-full flex items-center justify-center font-black ml-0.5">
+              {explore.activeFilterCount}
+            </span>
+          )}
+        </button>
+      )}
 
       <RandomPickModal
         item={randomPick}
@@ -640,7 +531,6 @@ export default function Home() {
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           isAuthenticated={auth.isAuthenticated}
-          userProfile={auth.userProfile}
           onLoginClick={() => auth.setIsAuthModalOpen(true)}
           onLogoutClick={auth.handleLogout}
           onPrivacyClick={() => setIsPrivacyModalOpen(true)}
@@ -655,23 +545,9 @@ export default function Home() {
             onSelectItem={handleSelectItem}
             onToggleCompleted={handleDrawerToggleCompleted}
             onToggleWatchlist={handleDrawerToggleWatchlist}
-            userProfile={auth.userProfile}
           />
         ) : activeTab === "settings" ? (
-          <SettingsPage
-            userProfile={auth.userProfile}
-            onUpdated={auth.loadProfile}
-          />
-        ) : activeTab === "feed" ? (
-          <ActivityFeed
-            feedItems={activityFeed}
-            isLoading={isFeedLoading}
-            userWatchedIds={userWatchedIds}
-            userWatchlistIds={userWatchlistIds}
-            onSelectItem={handleSelectItem}
-            onQuickAddToWatchlist={handleCardToggleWatchlist}
-            onQuickToggleCompleted={handleCardToggleCompleted}
-          />
+          <SettingsPage />
         ) : (
           <section className="space-y-4">
             {activeTab === "explore" && !explore.query.trim() && (

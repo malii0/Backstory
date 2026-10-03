@@ -2,21 +2,13 @@
 
 import React from "react";
 import Image from "next/image";
-import {
-  LogOut,
-  LogIn,
-  User,
-  Users,
-  ShieldCheck,
-  Settings,
-} from "lucide-react";
-import { ActiveTab, UserProfile } from "@/lib/types";
+import { LogOut, LogIn, User, ShieldCheck, Settings } from "lucide-react";
+import { ActiveTab } from "@/lib/types";
 
 interface HeaderProps {
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
   isAuthenticated: boolean;
-  userProfile: UserProfile | null;
   onLoginClick: () => void;
   onLogoutClick: () => void;
   onPrivacyClick: () => void;
@@ -124,17 +116,6 @@ export default function Header({
             İzlenecekler
           </button>
           <button
-            onClick={() => setActiveTab("feed")}
-            className={`px-3.5 sm:px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
-              activeTab === "feed"
-                ? "bg-accent/10 border border-accent/30 text-accent shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            Arkadaş Akışı
-          </button>
-          <button
             onClick={() => setActiveTab("stats")}
             className={`px-3.5 sm:px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap ${
               activeTab === "stats"
@@ -143,7 +124,7 @@ export default function Header({
             }`}
           >
             <User className="w-3.5 h-3.5" />
-            Profil
+            İstatistikler
           </button>
           <button
             onClick={() => setActiveTab("settings")}

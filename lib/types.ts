@@ -99,41 +99,11 @@ export interface LogMetadata {
   providers?: number[];
 }
 
-export interface UserProfile {
-  id: string;
-  username: string;
-  displayName: string;
-  avatarUrl: string;
-  isPublic?: boolean;
-  hasSeenAnnouncement?: boolean;
-}
-
-export interface PublicMemberItem {
-  id: string;
-  username: string;
-  avatarUrl: string;
-  completedCount: number;
-  watchlistCount: number;
-}
-
-export interface ActivityFeedItem {
-  id: string;
-  userId: string;
-  userProfile?: UserProfile;
-  key: string;
-  rating: number;
-  isCompleted: boolean;
-  isWatchlist: boolean;
-  itemData: MediaItem;
-  updatedAt: number;
-}
-
 export type ActiveTab =
   | "explore"
   | "completed"
   | "watchlist"
   | "stats"
-  | "feed"
   | "settings";
 
 export interface AIInsightItem {

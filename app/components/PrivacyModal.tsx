@@ -30,14 +30,13 @@ export default function PrivacyModal({ isOpen, onClose }: PrivacyModalProps) {
 
         <div className="text-xs text-muted-foreground leading-relaxed space-y-2 max-h-[60vh] overflow-y-auto pr-1">
           <p>
-            Bu uygulama kapsamında, hesabınızı oluşturabilmeniz, izleme
-            geçmişinizi kaydedebilmeniz ve arkadaşlarınızla paylaşabilmeniz
-            amacıyla e-posta adresiniz, kullanıcı adınız ve uygulama içi
-            etkileşim verileriniz (izlediğiniz/kaydettiğiniz içerikler ve
-            puanlarınız) Supabase altyapısı üzerinde saklanmaktadır.
+            Bu uygulama kapsamında, hesabınıza erişebilmeniz ve izleme
+            geçmişinizi cihazlarınız arasında senkronize edebilmeniz amacıyla
+            e-posta adresiniz ile uygulama içi izleme verileriniz (kaydettiğiniz
+            içerikler ve puanlarınız) Supabase altyapısında saklanmaktadır.
           </p>
           <p>
-            Kişisel verileriniz hiçbir şekilde 3. taraflarla satılmaz veya
+            Kişisel verileriniz hiçbir şekilde üçüncü taraflara satılmaz veya
             pazarlama amacıyla kullanılmaz.
           </p>
           <p>
