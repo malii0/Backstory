@@ -6,15 +6,17 @@ Live: [backstory0.vercel.app](https://backstory0.vercel.app)
 - **Discover:** Search movies and shows via TMDB, browse what's popular or new, and jump into related collections or similar titles.
 - **Detail view:** Cast, trailers, streaming availability (Netflix, Prime, etc.), and collection info, all pulled together in one panel.
 - **Stats dashboard:** Total watch time, genre breakdown, average rating, and other personal viewing stats.
-- **Activity feed:** See what other users have recently logged or rated.
-- **Realtime sync:** Changes made on one device (a new rating, a watchlist add) show up instantly on any other open tab or device, via Supabase realtime.
+- **Recommendations:** A personalized discovery feed computed from your logged titles and genre preferences, plus an optional AI-generated analysis of your taste in the stats dashboard that suggests what to watch next.
+- **Cloud sync:** Your library is stored in your personal account and remains available across your devices after signing in.
 - **PWA support:** Installable as an app on phone or desktop.
 ## Why I built it
-Most existing tracking apps were either full of ads or didn't quite give me the rating and stats setup I wanted. I started with a simple localStorage-based prototype, then moved to Supabase to add accounts, realtime sync, and a richer discovery experience.
+Most existing tracking apps were either full of ads or didn't quite give me the rating and stats setup I wanted. I started with a simple localStorage-based prototype, then moved to Supabase to add accounts, cloud sync, and a richer discovery experience.
 ## Tech stack
 - **Next.js (App Router)**, built with React 19.
-- **Supabase** for auth and the database (PostgreSQL). All data access is protected by Row Level Security, so each user can only modify their own records.
+- **Supabase** for auth and the database (PostgreSQL). All data access is protected by Row Level Security, restricting each user to reading and modifying only their own records.
 - **TMDB API**, proxied through a Next.js API route. The TMDB key stays serverside and never reaches the browser; the set of TMDB endpoints that can be called is also restricted to a fixed allowlist.
+- **Upstash Redis** for rate limiting on the TMDB and AI API routes, and for caching TMDB responses.
+- **Groq**, via the Vercel AI SDK, powers the AI recommendations. It only runs when you ask for it, and only the titles of up to 30 favorites and 30 watchlist items are sent for the analysis.
 - **Tailwind CSS** for the UI, deployed and hosted on **Vercel**.
 ## Access
 Signups are currently closed to the public, it's invite only for now. Reach out if you'd like an account.
