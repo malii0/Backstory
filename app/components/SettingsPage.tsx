@@ -1,8 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { UserProfile } from "@/lib/types";
-import { updateUserProfile } from "@/lib/db";
+import React, { useState } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { supabase } from "@/lib/supabase";
 import {
@@ -13,40 +11,9 @@ import {
   KeyRound,
   Mail,
   Monitor,
-  User as UserIcon,
-  Link as LinkIcon,
 } from "lucide-react";
 
-interface SettingsPageProps {
-  userProfile: UserProfile | null;
-  onUpdated: () => void;
-}
-
-const PRESET_EMOJIS = [
-  "🎬",
-  "🍿",
-  "👾",
-  "🚀",
-  "⭐",
-  "🐉",
-  "🎮",
-  "🍕",
-  "🤖",
-  "🎧",
-];
-
-export default function SettingsPage({
-  userProfile,
-  onUpdated,
-}: SettingsPageProps) {
-  const [username, setUsername] = useState(userProfile?.username || "");
-  const [avatarUrl, setAvatarUrl] = useState(userProfile?.avatarUrl || "🎬");
-  const [isPublic, setIsPublic] = useState(userProfile?.isPublic || false);
-
-  const [loading, setLoading] = useState(false);
-  const [updateSuccess, setUpdateSuccess] = useState(false);
-  const [profileError, setProfileError] = useState<string | null>(null);
-
+export default function SettingsPage() {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordMsg, setPasswordMsg] = useState<{
     text: string;
@@ -54,62 +21,6 @@ export default function SettingsPage({
   } | null>(null);
 
   const { mode, accent, updateMode, updateAccent, ACCENT_COLORS } = useTheme();
-
-  const [prevProfile, setPrevProfile] = useState(userProfile);
-
-  if (userProfile !== prevProfile) {
-    setPrevProfile(userProfile);
-    if (userProfile) {
-      setUsername(userProfile.username || "");
-      setAvatarUrl(userProfile.avatarUrl || "🎬");
-      setIsPublic(userProfile.isPublic || false);
-    }
-    setPasswordMsg(null);
-  }
-
-  useEffect(() => {
-    if (updateSuccess) {
-      const timer = setTimeout(() => {
-        setUpdateSuccess(false);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [updateSuccess]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setUpdateSuccess(false);
-    setProfileError(null);
-
-    const cleanUsername = username.trim().toLowerCase();
-    const usernameRegex = /^[a-z0-9_]{3,20}$/;
-
-    if (!usernameRegex.test(cleanUsername)) {
-      setProfileError(
-        "Kullanıcı adı 3-20 karakter uzunluğunda olmalı ve sadece küçük harf, rakam ve alt çizgi (_) içermelidir.",
-      );
-      setLoading(false);
-      return;
-    }
-
-    // Hem username hem de displayName olarak tekil kullanıcı adı kaydedilir
-    const result = await updateUserProfile(
-      cleanUsername,
-      cleanUsername,
-      avatarUrl,
-      isPublic,
-    );
-
-    setLoading(false);
-
-    if (result.success) {
-      setUpdateSuccess(true);
-      await onUpdated();
-    } else {
-      setProfileError(result.error || "Güncelleme başarısız oldu.");
-    }
-  };
 
   const handleSendResetEmail = async () => {
     setPasswordMsg(null);
@@ -153,7 +64,7 @@ export default function SettingsPage({
       <div className="pb-2 border-b border-border/60">
         <h2 className="text-xl font-extrabold text-foreground">Ayarlar</h2>
         <p className="text-xs text-muted-foreground">
-          Profilini ve uygulama temasını kişiselleştir.
+          Uygulama temasını kişiselleştirin ve hesap işlemlerinizi yönetin.
         </p>
       </div>
 
@@ -244,138 +155,7 @@ export default function SettingsPage({
         </p>
       </div>
 
-      {/* 2. Profil Bilgileri Kartı */}
-      <div className="bg-card/80 border border-border/80 p-5 sm:p-6 rounded-3xl shadow-sm">
-        <div className="flex items-center gap-2 text-foreground font-semibold mb-5">
-          <UserIcon className="w-4 h-4 text-accent" />
-          <h3>Profil Bilgileri</h3>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-3">
-            <label className="block text-sm font-medium text-foreground">
-              Avatar (Emoji)
-            </label>
-
-            <div className="flex items-center gap-4">
-              <div
-                className="w-16 h-16 bg-background border-2 rounded-2xl flex items-center justify-center text-3xl shadow-inner shrink-0"
-                style={{ borderColor: accent }}
-              >
-                {avatarUrl || "🎬"}
-              </div>
-              <div className="flex-1">
-                <input
-                  type="text"
-                  maxLength={4}
-                  value={avatarUrl}
-                  onChange={(e) => setAvatarUrl(e.target.value)}
-                  placeholder="Emoji yaz..."
-                  className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-accent transition"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2 pt-2">
-              {PRESET_EMOJIS.map((emoji) => (
-                <button
-                  key={emoji}
-                  type="button"
-                  onClick={() => setAvatarUrl(emoji)}
-                  className={`text-lg p-2 rounded-xl transition-all cursor-pointer ${
-                    avatarUrl === emoji
-                      ? "bg-muted border scale-105 shadow-sm"
-                      : "bg-background hover:bg-muted border border-border text-muted-foreground"
-                  }`}
-                  style={{
-                    borderColor: avatarUrl === emoji ? accent : undefined,
-                  }}
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-foreground">
-              Kullanıcı Adı
-            </label>
-            <input
-              type="text"
-              required
-              value={username}
-              onChange={(e) =>
-                setUsername(
-                  e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""),
-                )
-              }
-              className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:border-accent transition"
-              placeholder="kullanici_adi"
-            />
-            {username && (
-              <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 pt-0.5">
-                <LinkIcon className="w-3 h-3 text-accent" />
-                Profil Bağlantınız:{" "}
-                <span className="text-accent font-semibold">/u/{username}</span>
-              </p>
-            )}
-          </div>
-
-          <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-background/50 mt-4">
-            <div>
-              <p className="text-sm font-medium text-foreground">Açık Profil</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Profilinizi ve listelerinizi diğer kullanıcıların görmesine izin
-                verin.
-              </p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                className="sr-only peer"
-                checked={isPublic}
-                onChange={(e) => setIsPublic(e.target.checked)}
-              />
-              <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-            </label>
-          </div>
-
-          <div className="pt-2">
-            {profileError && (
-              <div className="mb-3 p-3 rounded-xl text-xs text-red-400 bg-red-950/50 border border-red-900/50 text-center animate-in fade-in duration-300">
-                {profileError}
-              </div>
-            )}
-
-            {updateSuccess && (
-              <div className="mb-3 p-3 rounded-xl text-xs text-emerald-400 bg-emerald-950/50 border border-emerald-900/50 text-center animate-in fade-in duration-300">
-                Profiliniz başarıyla güncellendi.
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 font-bold rounded-xl text-sm transition flex items-center justify-center gap-2 disabled:opacity-50 shadow-md cursor-pointer"
-              style={{
-                backgroundColor: accent,
-                color: "var(--app-accent-foreground)",
-              }}
-            >
-              {loading ? (
-                "Kaydediliyor..."
-              ) : (
-                <>
-                  <Check className="w-5 h-5" /> Değişiklikleri Kaydet
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-
-      {/* 3. Şifre İşlemleri Kartı */}
+      {/* 2. Şifre İşlemleri Kartı */}
       <div className="bg-card/80 border border-border/80 p-5 sm:p-6 rounded-3xl space-y-4 shadow-sm">
         <div className="flex items-center gap-2 text-foreground font-semibold">
           <KeyRound className="w-4 h-4 text-accent" />
