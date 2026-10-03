@@ -2,18 +2,21 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
+import { X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 interface AuthModalProps {
   isOpen: boolean;
   onSuccess: (isNewUser?: boolean) => void;
   isInviteMode?: boolean;
+  onClose?: () => void;
 }
 
 export default function AuthModal({
   isOpen,
   onSuccess,
   isInviteMode = false,
+  onClose,
 }: AuthModalProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -129,7 +132,16 @@ export default function AuthModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-      <div className="w-full max-w-sm rounded-3xl bg-card p-6 border border-border shadow-2xl space-y-4">
+      <div className="w-full max-w-sm rounded-3xl bg-card p-6 border border-border shadow-2xl space-y-4 relative">
+        {onClose && mode !== "set_password" && (
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 text-muted-foreground hover:text-foreground p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+
         <div className="text-center space-y-1">
           <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-lg shadow-accent/10 mx-auto mb-3 border border-border relative">
             <Image

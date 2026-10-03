@@ -16,8 +16,19 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://backstory0.vercel.app"),
   title: "Backstory - Sinema & Dizi Portfolyosu",
   description: "Kişisel film ve dizi takip uygulamanız.",
+  openGraph: {
+    title: "Backstory",
+    description:
+      "Backstory is a quiet, personal tracker for what you watch. Rate on a 0–10 scale, build a watchlist, and see your viewing stats. No feed, no ads, no public profiles.",
+    type: "website",
+    images: ["/screenshots/discover.png"],
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
   robots: {
     index: false,
     follow: false,

@@ -34,6 +34,7 @@ import FilterPanel from "./components/FilterPanel";
 import PrivacyModal from "./components/PrivacyModal";
 import RandomPickModal from "./components/RandomPickModal";
 import ToastList, { ToastItemData } from "./components/ToastList";
+import LandingPage from "./components/LandingPage";
 
 import { GENRES_LIST } from "@/lib/constants";
 import { MediaItem, MediaDetail, LogMetadata, ActiveTab } from "@/lib/types";
@@ -90,6 +91,10 @@ export default function Home() {
   );
 
   const auth = useAuth();
+  const [showLogin, setShowLogin] = useState(false);
+  const isLoginModalVisible =
+    auth.isAuthModalOpen && (auth.isInviteMode || showLogin);
+
   const logsManager = useMediaLogs(auth.isAuthenticated, showToast);
   const explore = useTmdbExplore(activeTab);
   const recommendations = useRecommendations(logsManager.logs);
@@ -242,7 +247,7 @@ export default function Home() {
     if (
       selectedItem ||
       randomPick ||
-      auth.isAuthModalOpen ||
+      isLoginModalVisible ||
       isRatingManagerOpen ||
       isPrivacyModalOpen
     ) {
@@ -256,7 +261,7 @@ export default function Home() {
   }, [
     selectedItem,
     randomPick,
-    auth.isAuthModalOpen,
+    isLoginModalVisible,
     isRatingManagerOpen,
     isPrivacyModalOpen,
   ]);
@@ -473,6 +478,39 @@ export default function Home() {
     setRandomPick(displayedItems[randomIndex]);
   };
 
+  const handleAuthSuccess = async () => {
+    await auth.finishRecoveryFlow();
+    setShowLogin(false);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  };
+
+  if (auth.isAuthLoading) {
+    return <main className="min-h-dvh bg-background" />;
+  }
+
+  if (!auth.isAuthenticated && !auth.isInviteMode) {
+    return (
+      <>
+        <LandingPage
+          onSignIn={() => setShowLogin(true)}
+          onPrivacyClick={() => setIsPrivacyModalOpen(true)}
+        />
+        <AuthModal
+          isOpen={isLoginModalVisible}
+          isInviteMode={auth.isInviteMode}
+          onSuccess={handleAuthSuccess}
+          onClose={() => setShowLogin(false)}
+        />
+        <PrivacyModal
+          isOpen={isPrivacyModalOpen}
+          onClose={() => setIsPrivacyModalOpen(false)}
+        />
+      </>
+    );
+  }
+
   return (
     <main className="min-h-dvh bg-background text-foreground font-sans p-4 sm:p-6 md:p-8 lg:p-10 relative pb-[calc(1rem+env(safe-area-inset-bottom))]">
       <Suspense fallback={null}>
@@ -480,14 +518,10 @@ export default function Home() {
       </Suspense>
 
       <AuthModal
-        isOpen={auth.isAuthModalOpen}
+        isOpen={isLoginModalVisible}
         isInviteMode={auth.isInviteMode}
-        onSuccess={async () => {
-          await auth.finishRecoveryFlow();
-          if (typeof window !== "undefined") {
-            window.history.replaceState(null, "", window.location.pathname);
-          }
-        }}
+        onSuccess={handleAuthSuccess}
+        onClose={!auth.isInviteMode ? () => setShowLogin(false) : undefined}
       />
 
       <PrivacyModal
@@ -531,7 +565,7 @@ export default function Home() {
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           isAuthenticated={auth.isAuthenticated}
-          onLoginClick={() => auth.setIsAuthModalOpen(true)}
+          onLoginClick={() => setShowLogin(true)}
           onLogoutClick={auth.handleLogout}
           onPrivacyClick={() => setIsPrivacyModalOpen(true)}
           isHidden={isHeaderHidden}
