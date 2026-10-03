@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     description:
       "Backstory is a quiet, personal tracker for what you watch. Rate on a 0–10 scale, build a watchlist, and see your viewing stats. No feed, no ads, no public profiles.",
     type: "website",
-    images: ["/screenshots/discover.png"],
+    images: [{ url: "/og.jpg", width: 1200, height: 750, alt: "Backstory" }],
   },
   twitter: {
     card: "summary_large_image",
