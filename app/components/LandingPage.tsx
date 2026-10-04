@@ -301,7 +301,7 @@ export default function LandingPage({
             <div className="space-y-2">
               <div className="relative aspect-[16/10] overflow-hidden rounded-2xl border border-border bg-card shadow-md">
                 <Image
-                  src="/screenshots/discover.png"
+                  src="/screenshots/discover.jpg"
                   alt={t.screenshots.alts.discover}
                   fill
                   sizes="(max-width: 768px) 100vw, 33vw"
@@ -316,7 +316,7 @@ export default function LandingPage({
             <div className="space-y-2">
               <div className="relative aspect-[16/10] overflow-hidden rounded-2xl border border-border bg-card shadow-md">
                 <Image
-                  src="/screenshots/detail.png"
+                  src="/screenshots/detail.jpg"
                   alt={t.screenshots.alts.details}
                   fill
                   sizes="(max-width: 768px) 100vw, 33vw"
@@ -331,7 +331,7 @@ export default function LandingPage({
             <div className="space-y-2">
               <div className="relative aspect-[16/10] overflow-hidden rounded-2xl border border-border bg-card shadow-md">
                 <Image
-                  src="/screenshots/stats.png"
+                  src="/screenshots/stats.jpg"
                   alt={t.screenshots.alts.stats}
                   fill
                   sizes="(max-width: 768px) 100vw, 33vw"
