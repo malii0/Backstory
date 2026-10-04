@@ -304,6 +304,7 @@ export default function LandingPage({
                   src="/screenshots/discover.jpg"
                   alt={t.screenshots.alts.discover}
                   fill
+                  priority
                   sizes="(max-width: 768px) 100vw, 33vw"
                   className="object-cover object-top"
                 />
