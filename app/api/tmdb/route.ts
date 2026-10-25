@@ -1,21 +1,83 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
+import { verifyServerAuth } from "@/lib/serverAuth";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 
-const ALLOWED_PATTERNS = [
-  /^\/search\/multi$/,
-  /^\/search\/(movie|tv)$/,
-  /^\/discover\/(movie|tv)$/,
-  /^\/(movie|tv)\/\d+$/,
-  /^\/(movie|tv)\/\d+\/recommendations$/,
-  /^\/trending\/all\/week$/,
-  /^\/collection\/\d+$/,
-  /^\/movie\/(now_playing|upcoming)$/,
-  /^\/person\/\d+\/combined_credits$/,
-  /^\/watch\/providers\/(movie|tv)$/,
-  /^\/(movie|tv)\/\d+\/watch\/providers$/,
+const ALLOWED_PATTERNS: Array<{
+  pattern: RegExp;
+  allowedParams: ReadonlySet<string>;
+}> = [
+  {
+    pattern: /^\/search\/multi$/,
+    allowedParams: new Set(["query", "page"]),
+  },
+  {
+    pattern: /^\/search\/(movie|tv)$/,
+    allowedParams: new Set(["query", "page"]),
+  },
+  {
+    pattern: /^\/discover\/movie$/,
+    allowedParams: new Set([
+      "page",
+      "sort_by",
+      "vote_count.gte",
+      "with_genres",
+      "vote_average.gte",
+      "with_watch_providers",
+      "watch_region",
+      "primary_release_date.gte",
+      "primary_release_date.lte",
+    ]),
+  },
+  {
+    pattern: /^\/discover\/tv$/,
+    allowedParams: new Set([
+      "page",
+      "sort_by",
+      "vote_count.gte",
+      "with_genres",
+      "vote_average.gte",
+      "with_watch_providers",
+      "watch_region",
+      "first_air_date.gte",
+      "first_air_date.lte",
+    ]),
+  },
+  {
+    pattern: /^\/(movie|tv)\/\d+$/,
+    allowedParams: new Set(["append_to_response", "include_image_language"]),
+  },
+  {
+    pattern: /^\/(movie|tv)\/\d+\/recommendations$/,
+    allowedParams: new Set([]),
+  },
+  {
+    pattern: /^\/trending\/all\/week$/,
+    allowedParams: new Set(["page"]),
+  },
+  {
+    pattern: /^\/collection\/\d+$/,
+    allowedParams: new Set([]),
+  },
+  {
+    pattern: /^\/movie\/(now_playing|upcoming)$/,
+    allowedParams: new Set(["region", "page"]),
+  },
+  {
+    pattern: /^\/person\/\d+\/combined_credits$/,
+    allowedParams: new Set([]),
+  },
+  {
+    pattern: /^\/watch\/providers\/(movie|tv)$/,
+    allowedParams: new Set(["watch_region"]),
+  },
+  {
+    pattern: /^\/(movie|tv)\/\d+\/watch\/providers$/,
+    allowedParams: new Set([]),
+  },
 ];
 
 export async function GET(request: NextRequest) {
@@ -23,6 +85,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       { error: "Server configuration error: TMDB API Key is missing." },
       { status: 500 },
+    );
+  }
+
+  const userId = await verifyServerAuth(request);
+  if (!userId) {
+    return NextResponse.json(
+      { error: "Yetkisiz erişim. Oturum açmanız gerekmektedir." },
+      { status: 401 },
     );
   }
 
@@ -36,19 +106,22 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const isAllowed = ALLOWED_PATTERNS.some((pattern) => pattern.test(endpoint));
-  if (!isAllowed) {
+  if (endpoint.length > 200) {
+    return NextResponse.json(
+      { error: "Invalid parameter value." },
+      { status: 400 },
+    );
+  }
+
+  const matchedRule = ALLOWED_PATTERNS.find((rule) =>
+    rule.pattern.test(endpoint),
+  );
+  if (!matchedRule) {
     return NextResponse.json(
       { error: "Endpoint not allowed." },
       { status: 403 },
     );
   }
-
-  const ip =
-    request.headers.get("x-vercel-forwarded-for") ||
-    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
-    request.headers.get("x-real-ip") ||
-    "unknown";
 
   if (!redis) {
     return NextResponse.json(
@@ -58,29 +131,62 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const rateKey = `ratelimit:tmdb:${ip}`;
-    const currentRequests = await redis.incr(rateKey);
-    if (currentRequests === 1) {
-      await redis.expire(rateKey, 60);
-    }
-    if (currentRequests > 300) {
+    const rateKey = `ratelimit:tmdb:${userId}`;
+    const { allowed } = await checkRateLimit(rateKey, 300, 60);
+    if (!allowed) {
       return NextResponse.json({ error: "Too Many Requests" }, { status: 429 });
     }
-  } catch {}
+  } catch (err) {
+    console.error("TMDB RATE LIMIT REDIS ERROR:", err);
+  }
+
+  const allowedEntries: Array<[string, string]> = [];
+  for (const key of matchedRule.allowedParams) {
+    if (!searchParams.has(key)) continue;
+    const value = searchParams.get(key) ?? "";
+    if (value.length > 200) {
+      return NextResponse.json(
+        { error: "Invalid parameter value." },
+        { status: 400 },
+      );
+    }
+    if (key === "page") {
+      if (!/^\d+$/.test(value)) {
+        return NextResponse.json(
+          { error: "Invalid page parameter." },
+          { status: 400 },
+        );
+      }
+      const pageNum = Number(value);
+      if (!Number.isInteger(pageNum) || pageNum < 1 || pageNum > 500) {
+        return NextResponse.json(
+          { error: "Invalid page parameter." },
+          { status: 400 },
+        );
+      }
+    }
+    allowedEntries.push([key, value]);
+  }
+
+  allowedEntries.sort(([a], [b]) => a.localeCompare(b));
 
   const targetUrl = new URL(`${TMDB_BASE_URL}${endpoint}`);
-  targetUrl.searchParams.append("api_key", TMDB_API_KEY);
-  targetUrl.searchParams.append("language", "tr-TR");
+  targetUrl.searchParams.set("api_key", TMDB_API_KEY);
+  targetUrl.searchParams.set("language", "tr-TR");
+
+  const canonicalEntries: Array<[string, string]> = [
+    ["language", "tr-TR"],
+    ...allowedEntries,
+  ];
+  canonicalEntries.sort(([a], [b]) => a.localeCompare(b));
 
   const cacheParams = new URLSearchParams();
-  cacheParams.append("language", "tr-TR");
-
-  searchParams.forEach((value, key) => {
-    if (key !== "endpoint" && key !== "api_key") {
-      targetUrl.searchParams.append(key, value);
-      cacheParams.append(key, value);
-    }
-  });
+  for (const [k, v] of canonicalEntries) {
+    cacheParams.append(k, v);
+  }
+  for (const [k, v] of allowedEntries) {
+    targetUrl.searchParams.set(k, v);
+  }
 
   const cacheKey = `tmdb:${endpoint}?${cacheParams.toString()}`;
 
@@ -92,8 +198,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(parsedData, {
         headers: {
           "X-Cache": "HIT",
-          "Cache-Control":
-            "public, s-maxage=86400, stale-while-revalidate=43200",
+          "Cache-Control": "private, max-age=3600",
         },
       });
     }
@@ -121,7 +226,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data, {
       headers: {
         "X-Cache": "MISS",
-        "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=43200",
+        "Cache-Control": "private, max-age=3600",
       },
     });
   } catch {

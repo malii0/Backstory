@@ -15,7 +15,10 @@ export const DEFAULT_YEAR_RANGE: YearRange = {
   end: new Date().getFullYear(),
 };
 
-export function useTmdbExplore(activeTab: ActiveTab) {
+export function useTmdbExplore(
+  activeTab: ActiveTab,
+  isAuthenticated: boolean,
+) {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
@@ -90,6 +93,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
   }, [minRating]);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     const fetchProviders = async () => {
       try {
         const [movieRes, tvRes] = await Promise.all([
@@ -131,9 +135,10 @@ export function useTmdbExplore(activeTab: ActiveTab) {
       } catch {}
     };
     fetchProviders();
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     const fetchNowPlayingIds = async () => {
       try {
         const res = await fetchWithAuth(
@@ -149,7 +154,7 @@ export function useTmdbExplore(activeTab: ActiveTab) {
       } catch {}
     };
     fetchNowPlayingIds();
-  }, []);
+  }, [isAuthenticated]);
 
   const isYearRangeActive =
     yearRange.start !== DEFAULT_YEAR_RANGE.start ||
@@ -197,7 +202,12 @@ export function useTmdbExplore(activeTab: ActiveTab) {
 
   const fetchContent = useCallback(
     async (pageNum: number, isNewSearch = false) => {
-      if (activeTab !== "explore" || exploreMode === "personalized") return;
+      if (
+        !isAuthenticated ||
+        activeTab !== "explore" ||
+        exploreMode === "personalized"
+      )
+        return;
       if (isFetchingRef.current && !isNewSearch) return;
 
       isFetchingRef.current = true;
@@ -359,13 +369,20 @@ export function useTmdbExplore(activeTab: ActiveTab) {
       isDebouncedYearRangeActive,
       debouncedYearRange,
       activeTab,
+      isAuthenticated,
     ],
   );
 
   useEffect(() => {
-    if (activeTab !== "explore" || exploreMode === "personalized") return;
+    if (
+      !isAuthenticated ||
+      activeTab !== "explore" ||
+      exploreMode === "personalized"
+    )
+      return;
     fetchContent(1, true);
   }, [
+    isAuthenticated,
     debouncedQuery,
     selectedMediaType,
     selectedGenreId,

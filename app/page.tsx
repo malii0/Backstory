@@ -96,7 +96,7 @@ export default function Home() {
     auth.isAuthModalOpen && (auth.isInviteMode || showLogin);
 
   const logsManager = useMediaLogs(auth.isAuthenticated, showToast);
-  const explore = useTmdbExplore(activeTab);
+  const explore = useTmdbExplore(activeTab, auth.isAuthenticated);
   const recommendations = useRecommendations(logsManager.logs);
 
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
