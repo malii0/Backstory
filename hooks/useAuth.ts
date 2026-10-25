@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
+import { clearAICache } from "@/lib/aiCache";
 
 function checkIsInviteOrRecovery() {
   if (typeof window === "undefined") return false;
@@ -11,6 +12,7 @@ function checkIsInviteOrRecovery() {
 }
 
 export function useAuth() {
+  const [userId, setUserId] = useState<string | undefined>(undefined);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
@@ -42,6 +44,7 @@ export function useAuth() {
         setIsInviteMode(true);
         setIsAuthModalOpen(true);
         setIsAuthenticated(false);
+        setUserId(undefined);
         setIsAuthLoading(false);
         return;
       }
@@ -52,11 +55,15 @@ export function useAuth() {
           setIsInviteMode(true);
           setIsAuthModalOpen(true);
           setIsAuthenticated(false);
+          setUserId(undefined);
         } else {
           setIsAuthenticated(true);
+          setUserId(session.user.id);
         }
       } else {
         setIsAuthenticated(false);
+        setUserId(undefined);
+        clearAICache();
         if (!initialInviteOrRecoveryRef.current && !isRecoveryFlowRef.current) {
           setIsAuthModalOpen(true);
         }
@@ -70,14 +77,20 @@ export function useAuth() {
   }, [setRecoveryFlowState]);
 
   const finishRecoveryFlow = useCallback(async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     setRecoveryFlowState(false);
     setIsInviteMode(false);
     setIsAuthModalOpen(false);
     setIsAuthenticated(true);
+    setUserId(session?.user?.id);
   }, [setRecoveryFlowState]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    clearAICache();
+    setUserId(undefined);
     setIsAuthenticated(false);
     setRecoveryFlowState(false);
     setIsInviteMode(false);
@@ -85,6 +98,7 @@ export function useAuth() {
   };
 
   return {
+    userId,
     isAuthenticated,
     isAuthLoading,
     isAuthModalOpen,

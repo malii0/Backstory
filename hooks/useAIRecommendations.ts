@@ -6,8 +6,15 @@ export function useAIRecommendations(userId?: string) {
   const [data, setData] = useState<AIInsightResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [prevUserId, setPrevUserId] = useState(userId);
 
-  const cacheKey = `ai_insights_cache_${userId || "guest"}`;
+  if (userId !== prevUserId) {
+    setPrevUserId(userId);
+    setData(null);
+    setError(null);
+  }
+
+  const cacheKey = userId ? `ai_insights_cache_${userId}` : null;
 
   const fetchInsights = useCallback(
     async (
@@ -16,7 +23,7 @@ export function useAIRecommendations(userId?: string) {
       loggedKeys: string[],
       forceRefresh = false,
     ) => {
-      if (!forceRefresh) {
+      if (!forceRefresh && cacheKey) {
         const cached = sessionStorage.getItem(cacheKey);
         if (cached) {
           try {
@@ -43,7 +50,9 @@ export function useAIRecommendations(userId?: string) {
 
         const result: AIInsightResponse = await res.json();
 
-        sessionStorage.setItem(cacheKey, JSON.stringify(result));
+        if (cacheKey) {
+          sessionStorage.setItem(cacheKey, JSON.stringify(result));
+        }
         setData(result);
       } catch (err: unknown) {
         const errorMessage =

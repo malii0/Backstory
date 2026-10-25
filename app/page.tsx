@@ -577,8 +577,9 @@ export default function Home() {
             onNavigateToExplore={() => setActiveTab("explore")}
             onOpenRatingManager={() => setIsRatingManagerOpen(true)}
             onSelectItem={handleSelectItem}
-            onToggleCompleted={handleDrawerToggleCompleted}
-            onToggleWatchlist={handleDrawerToggleWatchlist}
+            onToggleCompleted={handleCardToggleCompleted}
+            onToggleWatchlist={handleCardToggleWatchlist}
+            userId={auth.userId}
           />
         ) : activeTab === "settings" ? (
           <SettingsPage />
