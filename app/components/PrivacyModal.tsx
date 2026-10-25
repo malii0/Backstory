@@ -43,10 +43,12 @@ export default function PrivacyModal({ isOpen, onClose }: PrivacyModalProps) {
             veya başka herhangi bir tanımlayıcı bilgi gönderilmez.
           </p>
           <p>
-            Arama sorgularınız ve içerik başlığı istekleriniz TMDB servisine
-            yalnızca kendi sunucumuz üzerinden iletilir; bu sayede TMDB arama ve
-            veri isteklerinde sizin IP adresinizi değil, yalnızca sunucumuzu
-            görür.
+            Arama sorgularınız ve içerik bilgisi istekleriniz TMDB servisine
+            kendi sunucumuz üzerinden iletilir; bu isteklerde TMDB sizin IP
+            adresinizi değil, yalnızca sunucumuzu görür. Ancak afişler ve
+            görseller doğrudan TMDB&apos;nin görsel sunucusundan
+            (image.tmdb.org) tarayıcınıza yüklenir; bu nedenle görseller
+            yüklenirken IP adresiniz TMDB tarafından görülebilir.
           </p>
           <p>
             İstek sınırlandırma (rate-limit) sayaçları kullanıcı kimliği ve IP
@@ -57,7 +59,9 @@ export default function PrivacyModal({ isOpen, onClose }: PrivacyModalProps) {
             Uygulama Vercel üzerinde barındırılmakta olup performans ve kullanım
             ölçümü amacıyla Vercel Analytics ve Speed Insights kullanılmaktadır.
             YouTube ile yalnızca bir içeriğin fragmanını açtığınızda
-            (youtube-nocookie.com üzerinden) bağlantı kurulur.
+            (youtube-nocookie.com üzerinden) bağlantı kurulur. Barındırma
+            sağlayıcısı olarak Vercel, sunucu günlüklerinde IP adresi gibi
+            bağlantı bilgilerini işleyebilir.
           </p>
           <p>
             Kişisel verileriniz hiçbir şekilde üçüncü taraflara satılmaz veya
