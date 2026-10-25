@@ -24,9 +24,9 @@ interface StatsDashboardProps {
   onNavigateToExplore?: () => void;
   onOpenRatingManager?: () => void;
   onSelectItem?: (item: MediaItem) => void;
-  onToggleCompleted?: (item: MediaItem) => void;
-  onToggleWatchlist?: (item: MediaItem) => void;
-  userId?: string;
+  onToggleCompleted: (item: MediaItem) => void;
+  onToggleWatchlist: (item: MediaItem) => void;
+  userId: string | undefined;
 }
 
 export default function StatsDashboard({

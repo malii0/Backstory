@@ -10,7 +10,22 @@ function checkIsInviteOrRecovery() {
   return type === "invite" || type === "recovery";
 }
 
+function clearAICache() {
+  if (typeof window === "undefined") return;
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key && key.startsWith("ai_insights_cache_")) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((key) => sessionStorage.removeItem(key));
+  } catch {}
+}
+
 export function useAuth() {
+  const [userId, setUserId] = useState<string | undefined>(undefined);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
@@ -42,6 +57,7 @@ export function useAuth() {
         setIsInviteMode(true);
         setIsAuthModalOpen(true);
         setIsAuthenticated(false);
+        setUserId(undefined);
         setIsAuthLoading(false);
         return;
       }
@@ -52,11 +68,15 @@ export function useAuth() {
           setIsInviteMode(true);
           setIsAuthModalOpen(true);
           setIsAuthenticated(false);
+          setUserId(undefined);
         } else {
           setIsAuthenticated(true);
+          setUserId(session.user.id);
         }
       } else {
         setIsAuthenticated(false);
+        setUserId(undefined);
+        clearAICache();
         if (!initialInviteOrRecoveryRef.current && !isRecoveryFlowRef.current) {
           setIsAuthModalOpen(true);
         }
@@ -69,15 +89,30 @@ export function useAuth() {
     };
   }, [setRecoveryFlowState]);
 
+  const prevUserIdRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (prevUserIdRef.current !== userId) {
+      prevUserIdRef.current = userId;
+      clearAICache();
+    }
+  }, [userId]);
+
   const finishRecoveryFlow = useCallback(async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     setRecoveryFlowState(false);
     setIsInviteMode(false);
     setIsAuthModalOpen(false);
     setIsAuthenticated(true);
+    setUserId(session?.user?.id);
   }, [setRecoveryFlowState]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    clearAICache();
+    setUserId(undefined);
     setIsAuthenticated(false);
     setRecoveryFlowState(false);
     setIsInviteMode(false);
@@ -85,6 +120,7 @@ export function useAuth() {
   };
 
   return {
+    userId,
     isAuthenticated,
     isAuthLoading,
     isAuthModalOpen,
