@@ -67,15 +67,52 @@ export function useMediaLogs(
   }, []);
 
   const enqueueKeyWrite = useCallback(
-    <T,>(key: string, fn: () => Promise<T>): Promise<T> => {
+    (key: string, fn: () => Promise<boolean>): Promise<boolean> => {
       const prev = writeQueueRef.current.get(key) ?? Promise.resolve();
-      const next = prev.catch(() => {}).then(fn);
+      const next = prev
+        .catch(() => {})
+        .then(fn)
+        .catch((err) => {
+          if (process.env.NODE_ENV !== "production") {
+            console.error(err);
+          }
+          return false;
+        });
       const tracked = next.finally(() => {
         if (writeQueueRef.current.get(key) === tracked) {
           writeQueueRef.current.delete(key);
         }
       });
       writeQueueRef.current.set(key, tracked);
+      return next;
+    },
+    [],
+  );
+
+  const enqueueKeysWrite = useCallback(
+    (keys: string[], fn: () => Promise<boolean>): Promise<boolean> => {
+      const uniqueKeys = Array.from(new Set(keys));
+      const prevPromises = uniqueKeys.map(
+        (key) => writeQueueRef.current.get(key) ?? Promise.resolve(),
+      );
+      const next = Promise.all(prevPromises.map((p) => p.catch(() => {})))
+        .then(fn)
+        .catch((err) => {
+          if (process.env.NODE_ENV !== "production") {
+            console.error(err);
+          }
+          return false;
+        });
+      const tracked = next.finally(() => {
+        for (const key of uniqueKeys) {
+          if (writeQueueRef.current.get(key) === tracked) {
+            writeQueueRef.current.delete(key);
+          }
+        }
+      });
+      for (const key of uniqueKeys) {
+        writeQueueRef.current.set(key, tracked);
+      }
       return next;
     },
     [],
@@ -100,25 +137,52 @@ export function useMediaLogs(
 
   const fetchRequestIdRef = useRef(0);
 
-  const reloadFromCloud = useCallback(async () => {
+  const reloadFromCloud = useCallback(async (): Promise<{
+    latest: boolean;
+    ok: boolean;
+  }> => {
     const currentRequestId = ++fetchRequestIdRef.current;
     const { data, error } = await fetchLogsFromSupabase();
 
     if (currentRequestId === fetchRequestIdRef.current) {
       if (!error && data) {
-        setLogs(data);
+        const inFlightKeys = Array.from(writeQueueRef.current.keys());
+
+        const mergedForRef: Record<string, LogMetadata> = { ...data };
+        for (const key of inFlightKeys) {
+          if (Object.prototype.hasOwnProperty.call(logsRef.current, key)) {
+            mergedForRef[key] = logsRef.current[key];
+          } else {
+            delete mergedForRef[key];
+          }
+        }
+        logsRef.current = mergedForRef;
+
+        setLogs((prev) => {
+          const merged: Record<string, LogMetadata> = { ...data };
+          for (const key of inFlightKeys) {
+            if (Object.prototype.hasOwnProperty.call(prev, key)) {
+              merged[key] = prev[key];
+            } else {
+              delete merged[key];
+            }
+          }
+          return merged;
+        });
+
+        return { latest: true, ok: true };
       }
-      return true;
+      return { latest: true, ok: false };
     }
-    return false;
+    return { latest: false, ok: false };
   }, []);
 
   useEffect(() => {
     if (!isAuthenticated) return;
 
     const loadCloudLogs = async () => {
-      const isLatest = await reloadFromCloud();
-      if (isLatest) {
+      const { latest } = await reloadFromCloud();
+      if (latest) {
         setIsLogsLoading(false);
       }
     };
@@ -437,6 +501,7 @@ export function useMediaLogs(
       const keysToDelete: string[] = [];
       const updatesToSave: { key: string; log: LogMetadata }[] = [];
       const undoMap = new Map<string, LogMetadata | null>();
+      const writeVersions = new Map<string, number>();
 
       for (const item of items) {
         const key = getItemKey(item);
@@ -470,7 +535,8 @@ export function useMediaLogs(
           providers: currentLog.providers || [],
         };
 
-        incrementKeyVersion(key);
+        const writeVersion = incrementKeyVersion(key);
+        writeVersions.set(key, writeVersion);
 
         if (
           !updatedLog.isCompleted &&
@@ -485,32 +551,89 @@ export function useMediaLogs(
         }
       }
 
-      setUndoRecord({
+      const bulkUndoRecord = {
         entries: Array.from(undoMap.entries()).map(([key, prev]) => ({
           key,
           prev,
         })),
-      });
+      };
+      setUndoRecord(bulkUndoRecord);
 
       logsRef.current = updatedLogs;
       setLogs(updatedLogs);
 
-      let deleteSuccess = true;
-      let saveSuccess = true;
+      const keysToSave = updatesToSave.map((u) => u.key);
+      const deletePromise =
+        keysToDelete.length > 0
+          ? enqueueKeysWrite(keysToDelete, () =>
+              deleteBulkLogsFromSupabase(keysToDelete),
+            )
+          : Promise.resolve(true);
+      const savePromise =
+        updatesToSave.length > 0
+          ? enqueueKeysWrite(keysToSave, () =>
+              saveBulkLogsToSupabase(updatesToSave),
+            )
+          : Promise.resolve(true);
 
-      if (keysToDelete.length > 0) {
-        deleteSuccess = await deleteBulkLogsFromSupabase(keysToDelete);
-      }
-      if (updatesToSave.length > 0) {
-        saveSuccess = await saveBulkLogsToSupabase(updatesToSave);
-      }
+      const [deleteSuccess, saveSuccess] = await Promise.all([
+        deletePromise,
+        savePromise,
+      ]);
 
       if (!deleteSuccess || !saveSuccess) {
-        setUndoRecord(null);
-        await reloadFromCloud();
+        const failedKeys = new Set<string>();
+        if (!deleteSuccess) {
+          for (const key of keysToDelete) {
+            failedKeys.add(key);
+          }
+        }
+        if (!saveSuccess) {
+          for (const key of keysToSave) {
+            failedKeys.add(key);
+          }
+        }
+
+        const keysToRestore: string[] = [];
+        for (const key of failedKeys) {
+          if (keyVersionsRef.current.get(key) === writeVersions.get(key)) {
+            keysToRestore.push(key);
+          }
+        }
+
+        if (keysToRestore.length > 0) {
+          const nextLogsRef = { ...logsRef.current };
+          for (const key of keysToRestore) {
+            const prevVal = undoMap.get(key) ?? null;
+            if (prevVal) {
+              nextLogsRef[key] = prevVal;
+            } else {
+              delete nextLogsRef[key];
+            }
+          }
+          logsRef.current = nextLogsRef;
+
+          setLogs((prev) => {
+            const next = { ...prev };
+            for (const key of keysToRestore) {
+              const prevVal = undoMap.get(key) ?? null;
+              if (prevVal) {
+                next[key] = prevVal;
+              } else {
+                delete next[key];
+              }
+            }
+            return next;
+          });
+        }
+
+        if (undoRecordRef.current === bulkUndoRecord) {
+          setUndoRecord(null);
+        }
         showToast(
           "Bulut senkronizasyonu başarısız oldu. Değişiklik geri alındı.",
         );
+        void reloadFromCloud();
       } else {
         showToast(`${items.length} içerik toplu olarak güncellendi.`);
       }
@@ -520,6 +643,7 @@ export function useMediaLogs(
       showToast,
       incrementKeyVersion,
       setUndoRecord,
+      enqueueKeysWrite,
       reloadFromCloud,
     ],
   );
@@ -531,9 +655,19 @@ export function useMediaLogs(
     const entries = record.entries;
     setUndoRecord(null);
 
+    const beforeMap = new Map<string, LogMetadata | null>();
+    const undoVersions = new Map<string, number>();
+
     const nextLogs = { ...logsRef.current };
     for (const { key, prev } of entries) {
-      incrementKeyVersion(key);
+      if (!beforeMap.has(key)) {
+        beforeMap.set(
+          key,
+          logsRef.current[key] ? { ...logsRef.current[key] } : null,
+        );
+      }
+      const version = incrementKeyVersion(key);
+      undoVersions.set(key, version);
       if (prev) {
         nextLogs[key] = prev;
       } else {
@@ -563,8 +697,47 @@ export function useMediaLogs(
     );
 
     if (results.some((ok) => !ok)) {
-      await reloadFromCloud();
-      showToast("Geri alma buluta kaydedilemedi. Liste buluttan yenilendi.");
+      const keysToRevert: string[] = [];
+      entries.forEach(({ key }, idx) => {
+        if (
+          !results[idx] &&
+          keyVersionsRef.current.get(key) === undoVersions.get(key)
+        ) {
+          keysToRevert.push(key);
+        }
+      });
+
+      if (keysToRevert.length > 0) {
+        const revertedLogsRef = { ...logsRef.current };
+        for (const key of keysToRevert) {
+          const beforeVal = beforeMap.get(key) ?? null;
+          if (beforeVal) {
+            revertedLogsRef[key] = beforeVal;
+          } else {
+            delete revertedLogsRef[key];
+          }
+        }
+        logsRef.current = revertedLogsRef;
+
+        setLogs((prevLogs) => {
+          const updated = { ...prevLogs };
+          for (const key of keysToRevert) {
+            const beforeVal = beforeMap.get(key) ?? null;
+            if (beforeVal) {
+              updated[key] = beforeVal;
+            } else {
+              delete updated[key];
+            }
+          }
+          return updated;
+        });
+      }
+
+      if (undoRecordRef.current === null) {
+        setUndoRecord(record);
+      }
+      showToast("Geri alma buluta kaydedilemedi.");
+      void reloadFromCloud();
     }
   }, [setUndoRecord, incrementKeyVersion, enqueueKeyWrite, reloadFromCloud, showToast]);
 
