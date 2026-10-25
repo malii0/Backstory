@@ -42,3 +42,5 @@ next-env.d.ts
 
 # Repomix outputs
 repomix-output*.xml
+
+AUDIT_REPORT.md
