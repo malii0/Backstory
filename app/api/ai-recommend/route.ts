@@ -60,6 +60,15 @@ export async function POST(req: Request) {
       );
     }
 
+    const tmdbApiKey = process.env.TMDB_API_KEY;
+    if (!tmdbApiKey) {
+      console.error("AI RECOMMEND ERROR: TMDB_API_KEY is not configured.");
+      return NextResponse.json(
+        { error: "Servis şu anda kullanılamıyor." },
+        { status: 503 },
+      );
+    }
+
     const ip =
       req.headers.get("x-vercel-forwarded-for") ||
       req.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
@@ -161,17 +170,7 @@ ${JSON.stringify({ favorites: cleanFavorites, watchlist: cleanWatchlist })}
 
     const keywords = result.object.keywords || ["sci-fi", "thriller", "drama"];
     const rawSuggestions = result.object.suggestions || [];
-    const tmdbApiKey = process.env.TMDB_API_KEY;
     const loggedSet = new Set<string>(loggedKeys);
-
-    if (!tmdbApiKey) {
-      console.error("AI RECOMMEND ERROR: TMDB_API_KEY is not configured.");
-      return NextResponse.json({
-        rationale: "Profilinize uygun izlenmemiş yeni içerik bulunamadı.",
-        matchedKeywords: keywords,
-        recommendedItems: [],
-      });
-    }
 
     const searchPromises = rawSuggestions.map(async (sug) => {
       try {

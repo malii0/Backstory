@@ -135,12 +135,18 @@ function applyTheme(newMode: ThemeMode, newAccentHex: string) {
 
 function getInitialMode(): ThemeMode {
   if (typeof window === "undefined") return "dark";
-  return (localStorage.getItem("backstory-theme-mode") as ThemeMode) || "dark";
+  const rawMode = localStorage.getItem("backstory-theme-mode");
+  return rawMode === "dark" || rawMode === "light" || rawMode === "system"
+    ? rawMode
+    : "dark";
 }
 
 function getInitialAccent(): string {
   if (typeof window === "undefined") return "#f59e0b";
-  return localStorage.getItem("backstory-accent-color") || "#f59e0b";
+  const rawAccent = localStorage.getItem("backstory-accent-color");
+  return rawAccent && /^#[0-9a-fA-F]{6}$/.test(rawAccent)
+    ? rawAccent
+    : "#f59e0b";
 }
 
 export function useTheme() {

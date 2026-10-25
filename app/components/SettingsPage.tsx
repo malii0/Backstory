@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { supabase } from "@/lib/supabase";
+import { mapAuthErrorToTurkish } from "@/lib/authErrors";
 import {
   Check,
   Sun,
@@ -46,12 +47,11 @@ export default function SettingsPage() {
         isError: false,
       });
     } catch (err: unknown) {
-      const errorMessage =
-        err instanceof Error
-          ? err.message
-          : "E-posta gönderilirken bir hata oluştu.";
+      if (process.env.NODE_ENV !== "production") {
+        console.error(err);
+      }
       setPasswordMsg({
-        text: errorMessage,
+        text: mapAuthErrorToTurkish(err),
         isError: true,
       });
     } finally {
