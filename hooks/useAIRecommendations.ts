@@ -1,20 +1,6 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import { AIInsightResponse, MediaItem } from "@/lib/types";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
-
-function clearAICache() {
-  if (typeof window === "undefined") return;
-  try {
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < sessionStorage.length; i++) {
-      const key = sessionStorage.key(i);
-      if (key && key.startsWith("ai_insights_cache_")) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach((key) => sessionStorage.removeItem(key));
-  } catch {}
-}
 
 export function useAIRecommendations(userId?: string) {
   const [data, setData] = useState<AIInsightResponse | null>(null);
@@ -27,15 +13,6 @@ export function useAIRecommendations(userId?: string) {
     setData(null);
     setError(null);
   }
-
-  const prevUserIdRef = useRef(userId);
-
-  useEffect(() => {
-    if (prevUserIdRef.current !== userId) {
-      prevUserIdRef.current = userId;
-      clearAICache();
-    }
-  }, [userId]);
 
   const cacheKey = userId ? `ai_insights_cache_${userId}` : null;
 

@@ -2,26 +2,13 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
+import { clearAICache } from "@/lib/aiCache";
 
 function checkIsInviteOrRecovery() {
   if (typeof window === "undefined") return false;
   const hashParams = new URLSearchParams(window.location.hash.substring(1));
   const type = hashParams.get("type");
   return type === "invite" || type === "recovery";
-}
-
-function clearAICache() {
-  if (typeof window === "undefined") return;
-  try {
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < sessionStorage.length; i++) {
-      const key = sessionStorage.key(i);
-      if (key && key.startsWith("ai_insights_cache_")) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach((key) => sessionStorage.removeItem(key));
-  } catch {}
 }
 
 export function useAuth() {
@@ -88,15 +75,6 @@ export function useAuth() {
       subscription.unsubscribe();
     };
   }, [setRecoveryFlowState]);
-
-  const prevUserIdRef = useRef<string | undefined>(undefined);
-
-  useEffect(() => {
-    if (prevUserIdRef.current !== userId) {
-      prevUserIdRef.current = userId;
-      clearAICache();
-    }
-  }, [userId]);
 
   const finishRecoveryFlow = useCallback(async () => {
     const {
