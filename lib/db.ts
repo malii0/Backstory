@@ -28,24 +28,30 @@ const mapRowToLog = (row: MediaLogRow): LogMetadata => ({
     | undefined,
 });
 
+const getCurrentUserId = async (): Promise<string | null> => {
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.getSession();
+  if (error) return null;
+  return session?.user?.id ?? null;
+};
+
 export const fetchLogsFromSupabase = async (): Promise<{
   data: Record<string, LogMetadata>;
   error: string | null;
 }> => {
   try {
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    const userId = await getCurrentUserId();
 
-    if (userError || !user) {
+    if (!userId) {
       return { data: {}, error: null };
     }
 
     const { data, error } = await supabase
       .from("media_logs")
       .select("*")
-      .eq("user_id", user.id);
+      .eq("user_id", userId);
 
     if (error) {
       return {
@@ -70,12 +76,9 @@ export const saveLogToSupabase = async (
   key: string,
   log: LogMetadata,
 ): Promise<boolean> => {
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+  const userId = await getCurrentUserId();
 
-  if (userError || !user) {
+  if (!userId) {
     return false;
   }
 
@@ -85,7 +88,7 @@ export const saveLogToSupabase = async (
   };
 
   const row: Database["public"]["Tables"]["media_logs"]["Insert"] = {
-    user_id: user.id,
+    user_id: userId,
     key,
     is_completed: log.isCompleted ?? false,
     is_watchlist: log.isWatchlist ?? false,
@@ -109,12 +112,9 @@ export const saveBulkLogsToSupabase = async (
 ): Promise<boolean> => {
   if (updates.length === 0) return true;
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+  const userId = await getCurrentUserId();
 
-  if (userError || !user) {
+  if (!userId) {
     return false;
   }
 
@@ -125,7 +125,7 @@ export const saveBulkLogsToSupabase = async (
     };
 
     return {
-      user_id: user.id,
+      user_id: userId,
       key,
       is_completed: log.isCompleted ?? false,
       is_watchlist: log.isWatchlist ?? false,
@@ -146,11 +146,9 @@ export const saveBulkLogsToSupabase = async (
 };
 
 export const deleteLogFromSupabase = async (key: string): Promise<boolean> => {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userId = await getCurrentUserId();
 
-  if (!user) {
+  if (!userId) {
     return false;
   }
 
@@ -158,7 +156,7 @@ export const deleteLogFromSupabase = async (key: string): Promise<boolean> => {
     .from("media_logs")
     .delete()
     .eq("key", key)
-    .eq("user_id", user.id);
+    .eq("user_id", userId);
 
   return !error;
 };
@@ -168,18 +166,16 @@ export const deleteBulkLogsFromSupabase = async (
 ): Promise<boolean> => {
   if (keys.length === 0) return true;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userId = await getCurrentUserId();
 
-  if (!user) {
+  if (!userId) {
     return false;
   }
 
   const { error } = await supabase
     .from("media_logs")
     .delete()
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .in("key", keys);
 
   return !error;

@@ -41,7 +41,45 @@ export function useMediaLogs(
   }, []);
 
   const logsRef = useRef<Record<string, LogMetadata>>(logs);
-  const previousLogsRef = useRef<Record<string, LogMetadata> | null>(null);
+  const writeQueueRef = useRef<Map<string, Promise<unknown>>>(new Map());
+  const keyVersionsRef = useRef<Map<string, number>>(new Map());
+  const undoRecordRef = useRef<{
+    entries: Array<{ key: string; prev: LogMetadata | null }>;
+  } | null>(null);
+  const [canUndo, setCanUndo] = useState<boolean>(false);
+
+  const setUndoRecord = useCallback(
+    (
+      record: {
+        entries: Array<{ key: string; prev: LogMetadata | null }>;
+      } | null,
+    ) => {
+      undoRecordRef.current = record;
+      setCanUndo(record !== null && record.entries.length > 0);
+    },
+    [],
+  );
+
+  const incrementKeyVersion = useCallback((key: string): number => {
+    const next = (keyVersionsRef.current.get(key) ?? 0) + 1;
+    keyVersionsRef.current.set(key, next);
+    return next;
+  }, []);
+
+  const enqueueKeyWrite = useCallback(
+    <T,>(key: string, fn: () => Promise<T>): Promise<T> => {
+      const prev = writeQueueRef.current.get(key) ?? Promise.resolve();
+      const next = prev.catch(() => {}).then(fn);
+      const tracked = next.finally(() => {
+        if (writeQueueRef.current.get(key) === tracked) {
+          writeQueueRef.current.delete(key);
+        }
+      });
+      writeQueueRef.current.set(key, tracked);
+      return next;
+    },
+    [],
+  );
 
   useEffect(() => {
     logsRef.current = logs;
@@ -62,24 +100,31 @@ export function useMediaLogs(
 
   const fetchRequestIdRef = useRef(0);
 
+  const reloadFromCloud = useCallback(async () => {
+    const currentRequestId = ++fetchRequestIdRef.current;
+    const { data, error } = await fetchLogsFromSupabase();
+
+    if (currentRequestId === fetchRequestIdRef.current) {
+      if (!error && data) {
+        setLogs(data);
+      }
+      return true;
+    }
+    return false;
+  }, []);
+
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const currentRequestId = ++fetchRequestIdRef.current;
-
     const loadCloudLogs = async () => {
-      const { data, error } = await fetchLogsFromSupabase();
-
-      if (currentRequestId === fetchRequestIdRef.current) {
-        if (!error && data) {
-          setLogs(data);
-        }
+      const isLatest = await reloadFromCloud();
+      if (isLatest) {
         setIsLogsLoading(false);
       }
     };
 
     loadCloudLogs();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, reloadFromCloud]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -174,7 +219,8 @@ export function useMediaLogs(
       options?: { silent?: boolean },
     ) => {
       const key = getItemKey(item);
-      const currentLog = logsRef.current[key] || {
+      const prevLog = logsRef.current[key] ? { ...logsRef.current[key] } : null;
+      const currentLog = prevLog || {
         isCompleted: false,
         isWatchlist: false,
         rating: 0,
@@ -235,38 +281,97 @@ export function useMediaLogs(
         providers: cachedProviders,
       };
 
-      const previousLogsState = { ...logsRef.current };
-      previousLogsRef.current = previousLogsState;
+      if (!options?.silent) {
+        setUndoRecord({ entries: [{ key, prev: prevLog }] });
+      }
+
+      const writeVersion = incrementKeyVersion(key);
 
       if (
         !updatedLog.isCompleted &&
         !updatedLog.isWatchlist &&
         updatedLog.rating === 0
       ) {
+        const nextLogs = { ...logsRef.current };
+        delete nextLogs[key];
+        logsRef.current = nextLogs;
+
         setLogs((prev) => {
           const newLogs = { ...prev };
           delete newLogs[key];
           return newLogs;
         });
 
-        const success = await deleteLogFromSupabase(key);
+        const success = await enqueueKeyWrite(key, () =>
+          deleteLogFromSupabase(key),
+        );
         if (!success) {
-          setLogs(previousLogsState);
-          previousLogsRef.current = null;
+          if (keyVersionsRef.current.get(key) === writeVersion) {
+            if (prevLog) {
+              logsRef.current = { ...logsRef.current, [key]: prevLog };
+            } else {
+              const restoredLogs = { ...logsRef.current };
+              delete restoredLogs[key];
+              logsRef.current = restoredLogs;
+            }
+            setLogs((prev) => {
+              const next = { ...prev };
+              if (prevLog) {
+                next[key] = prevLog;
+              } else {
+                delete next[key];
+              }
+              return next;
+            });
+          }
+          if (
+            !options?.silent &&
+            undoRecordRef.current?.entries.length === 1 &&
+            undoRecordRef.current.entries[0].key === key
+          ) {
+            setUndoRecord(null);
+          }
           showToast(
             "Bulut senkronizasyonu başarısız oldu. Değişiklik geri alındı.",
           );
         }
       } else {
+        logsRef.current = { ...logsRef.current, [key]: updatedLog };
+
         setLogs((prev) => ({
           ...prev,
           [key]: updatedLog,
         }));
 
-        const success = await saveLogToSupabase(key, updatedLog);
+        const success = await enqueueKeyWrite(key, () =>
+          saveLogToSupabase(key, updatedLog),
+        );
         if (!success) {
-          setLogs(previousLogsState);
-          previousLogsRef.current = null;
+          if (keyVersionsRef.current.get(key) === writeVersion) {
+            if (prevLog) {
+              logsRef.current = { ...logsRef.current, [key]: prevLog };
+            } else {
+              const restoredLogs = { ...logsRef.current };
+              delete restoredLogs[key];
+              logsRef.current = restoredLogs;
+            }
+            setLogs((prev) => {
+              const next = { ...prev };
+              if (prevLog) {
+                next[key] = prevLog;
+              } else {
+                delete next[key];
+              }
+              return next;
+            });
+          }
+          if (
+            !options?.silent &&
+            undoRecordRef.current?.entries.length === 1 &&
+            undoRecordRef.current.entries[0].key === key
+          ) {
+            setUndoRecord(null);
+          }
           showToast(
             "Bulut senkronizasyonu başarısız oldu. Değişiklik geri alındı.",
           );
@@ -282,36 +387,66 @@ export function useMediaLogs(
                   ? trProviders.map((p: WatchProviderInfo) => p.provider_id)
                   : [];
 
+                const curr = logsRef.current[key];
+                if (!curr) return;
+
+                const silentlyUpdatedLog: LogMetadata = {
+                  ...curr,
+                  providers: fetchedProviders,
+                };
+
+                incrementKeyVersion(key);
+                logsRef.current = {
+                  ...logsRef.current,
+                  [key]: silentlyUpdatedLog,
+                };
+
                 setLogs((prev) => {
-                  const curr = prev[key];
-                  if (!curr) return prev;
-                  const silentlyUpdatedLog = {
-                    ...curr,
-                    providers: fetchedProviders,
+                  const existing = prev[key];
+                  if (!existing) return prev;
+                  return {
+                    ...prev,
+                    [key]: {
+                      ...existing,
+                      providers: fetchedProviders,
+                    },
                   };
-                  saveLogToSupabase(key, silentlyUpdatedLog);
-                  return { ...prev, [key]: silentlyUpdatedLog };
                 });
+
+                enqueueKeyWrite(key, () =>
+                  saveLogToSupabase(key, silentlyUpdatedLog),
+                );
               }
             })
             .catch(() => {});
         }
       }
     },
-    [getItemKey, showToast],
+    [
+      getItemKey,
+      showToast,
+      setUndoRecord,
+      incrementKeyVersion,
+      enqueueKeyWrite,
+    ],
   );
 
   const bulkUpdateRating = useCallback(
     async (items: MediaItem[], rating: number) => {
-      const previousState = { ...logsRef.current };
-      previousLogsRef.current = previousState;
-
       const updatedLogs = { ...logsRef.current };
       const keysToDelete: string[] = [];
       const updatesToSave: { key: string; log: LogMetadata }[] = [];
+      const undoMap = new Map<string, LogMetadata | null>();
 
       for (const item of items) {
         const key = getItemKey(item);
+        if (!undoMap.has(key)) {
+          undoMap.set(
+            key,
+            logsRef.current[key] ? { ...logsRef.current[key] } : null,
+          );
+        }
+
         const currentLog = updatedLogs[key] || {
           isCompleted: false,
           isWatchlist: false,
@@ -335,6 +470,8 @@ export function useMediaLogs(
           providers: currentLog.providers || [],
         };
 
+        incrementKeyVersion(key);
+
         if (
           !updatedLog.isCompleted &&
           !updatedLog.isWatchlist &&
@@ -348,6 +485,14 @@ export function useMediaLogs(
         }
       }
 
+      setUndoRecord({
+        entries: Array.from(undoMap.entries()).map(([key, prev]) => ({
+          key,
+          prev,
+        })),
+      });
+
+      logsRef.current = updatedLogs;
       setLogs(updatedLogs);
 
       let deleteSuccess = true;
@@ -361,8 +506,8 @@ export function useMediaLogs(
       }
 
       if (!deleteSuccess || !saveSuccess) {
-        setLogs(previousState);
-        previousLogsRef.current = null;
+        setUndoRecord(null);
+        await reloadFromCloud();
         showToast(
           "Bulut senkronizasyonu başarısız oldu. Değişiklik geri alındı.",
         );
@@ -370,8 +515,58 @@ export function useMediaLogs(
         showToast(`${items.length} içerik toplu olarak güncellendi.`);
       }
     },
-    [getItemKey, showToast],
+    [
+      getItemKey,
+      showToast,
+      incrementKeyVersion,
+      setUndoRecord,
+      reloadFromCloud,
+    ],
   );
+
+  const undo = useCallback(async () => {
+    const record = undoRecordRef.current;
+    if (!record || record.entries.length === 0) return;
+
+    const entries = record.entries;
+    setUndoRecord(null);
+
+    const nextLogs = { ...logsRef.current };
+    for (const { key, prev } of entries) {
+      incrementKeyVersion(key);
+      if (prev) {
+        nextLogs[key] = prev;
+      } else {
+        delete nextLogs[key];
+      }
+    }
+    logsRef.current = nextLogs;
+
+    setLogs((prevLogs) => {
+      const updated = { ...prevLogs };
+      for (const { key, prev } of entries) {
+        if (prev) {
+          updated[key] = prev;
+        } else {
+          delete updated[key];
+        }
+      }
+      return updated;
+    });
+
+    const results = await Promise.all(
+      entries.map(({ key, prev }) =>
+        enqueueKeyWrite(key, () =>
+          prev ? saveLogToSupabase(key, prev) : deleteLogFromSupabase(key),
+        ),
+      ),
+    );
+
+    if (results.some((ok) => !ok)) {
+      await reloadFromCloud();
+      showToast("Geri alma buluta kaydedilemedi. Liste buluttan yenilendi.");
+    }
+  }, [setUndoRecord, incrementKeyVersion, enqueueKeyWrite, reloadFromCloud, showToast]);
 
   const toggleCompleted = useCallback(
     (
@@ -490,9 +685,9 @@ export function useMediaLogs(
 
   return {
     logs,
-    setLogs,
     isLogsLoading,
-    previousLogsRef,
+    canUndo,
+    undo,
     getItemKey,
     updateLog,
     bulkUpdateRating,

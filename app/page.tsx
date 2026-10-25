@@ -39,7 +39,6 @@ import LandingPage from "./components/LandingPage";
 import { GENRES_LIST } from "@/lib/constants";
 import { MediaItem, MediaDetail, LogMetadata, ActiveTab } from "@/lib/types";
 import { getEffectiveWatchCount } from "@/lib/utils";
-import { saveBulkLogsToSupabase, deleteBulkLogsFromSupabase } from "@/lib/db";
 import { useAuth } from "@/hooks/useAuth";
 import { useMediaLogs } from "@/hooks/useMediaLogs";
 import { useTmdbExplore, DEFAULT_YEAR_RANGE } from "@/hooks/useTmdbExplore";
@@ -285,42 +284,9 @@ export default function Home() {
     }
   }, [explore.showFilters]);
 
-  const handleUndo = async () => {
-    const restored = logsManager.previousLogsRef.current;
-    if (!restored) return;
-
-    const currentLogs = logsManager.logs;
-    logsManager.setLogs(restored);
+  const handleUndo = () => {
+    logsManager.undo();
     setToasts([]);
-    logsManager.previousLogsRef.current = null;
-
-    const allKeys = new Set([
-      ...Object.keys(restored),
-      ...Object.keys(currentLogs),
-    ]);
-
-    const keysToDelete: string[] = [];
-    const updatesToSave: { key: string; log: LogMetadata }[] = [];
-
-    for (const key of allKeys) {
-      const prevLog = restored[key];
-      const currLog = currentLogs[key];
-
-      if (JSON.stringify(prevLog) !== JSON.stringify(currLog)) {
-        if (prevLog) {
-          updatesToSave.push({ key, log: prevLog });
-        } else {
-          keysToDelete.push(key);
-        }
-      }
-    }
-
-    if (keysToDelete.length > 0) {
-      await deleteBulkLogsFromSupabase(keysToDelete);
-    }
-    if (updatesToSave.length > 0) {
-      await saveBulkLogsToSupabase(updatesToSave);
-    }
   };
 
   const fetchDetails = useCallback(async () => {
@@ -532,7 +498,7 @@ export default function Home() {
       <ToastList
         toasts={toasts}
         onUndo={handleUndo}
-        canUndo={!!logsManager.previousLogsRef.current}
+        canUndo={logsManager.canUndo}
       />
 
       {showFab && activeTab !== "stats" && activeTab !== "settings" && (
