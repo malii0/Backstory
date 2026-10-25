@@ -41,6 +41,9 @@ export function useMediaLogs(
   }, []);
 
   const logsRef = useRef<Record<string, LogMetadata>>(logs);
+  const initialLoadRunIdRef = useRef<number>(0);
+  const runtimeAttemptedKeysRef = useRef<Set<string>>(new Set());
+  const runtimeRepairCountRef = useRef<number>(0);
   const writeQueueRef = useRef<Map<string, Promise<unknown>>>(new Map());
   const keyVersionsRef = useRef<Map<string, number>>(new Map());
   const undoRecordRef = useRef<{
@@ -177,18 +180,134 @@ export function useMediaLogs(
     return { latest: false, ok: false };
   }, []);
 
+  const backfillRuntime = useCallback(
+    async (key: string, type: string, id: number): Promise<void> => {
+      if (runtimeAttemptedKeysRef.current.has(key)) return;
+      runtimeAttemptedKeysRef.current.add(key);
+
+      try {
+        const res = await fetchWithAuth(`/api/tmdb?endpoint=/${type}/${id}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data) return;
+
+        let computedRuntime = 0;
+        if (type === "movie") {
+          computedRuntime = data.runtime || 0;
+        } else if (type === "tv") {
+          const epCount = data.number_of_episodes || 0;
+          const epTime = data.episode_run_time?.[0] || 45;
+          computedRuntime = epCount > 0 ? epCount * epTime : 0;
+        }
+
+        if (computedRuntime <= 0) return;
+
+        const curr = logsRef.current[key];
+        if (!curr || !curr.isCompleted || (curr.runtime ?? 0) > 0) return;
+
+        const updatedLog: LogMetadata = {
+          ...curr,
+          runtime: computedRuntime,
+        };
+
+        incrementKeyVersion(key);
+        logsRef.current = {
+          ...logsRef.current,
+          [key]: updatedLog,
+        };
+
+        setLogs((prev) => {
+          const existing = prev[key];
+          if (
+            !existing ||
+            !existing.isCompleted ||
+            (existing.runtime ?? 0) > 0
+          ) {
+            return prev;
+          }
+          return {
+            ...prev,
+            [key]: {
+              ...existing,
+              runtime: computedRuntime,
+            },
+          };
+        });
+
+        void enqueueKeyWrite(key, () => saveLogToSupabase(key, updatedLog));
+      } catch {}
+    },
+    [incrementKeyVersion, enqueueKeyWrite],
+  );
+
+  const runtimeRepair = useCallback(async (): Promise<void> => {
+    const runId = initialLoadRunIdRef.current;
+
+    const candidates = Object.entries(logsRef.current)
+      .filter(
+        ([key, log]) =>
+          log.isCompleted &&
+          (log.runtime ?? 0) <= 0 &&
+          !runtimeAttemptedKeysRef.current.has(key) &&
+          Boolean(log.itemData?.id && log.itemData?.media_type),
+      )
+      .sort(([, a], [, b]) => {
+        const aOrder = a.itemData?.media_type === "tv" ? 0 : 1;
+        const bOrder = b.itemData?.media_type === "tv" ? 0 : 1;
+        return aOrder - bOrder;
+      });
+
+    for (let i = 0; i < candidates.length; i++) {
+      if (
+        initialLoadRunIdRef.current !== runId ||
+        runtimeRepairCountRef.current >= 50
+      ) {
+        return;
+      }
+
+      const [key, log] = candidates[i];
+      if (runtimeAttemptedKeysRef.current.has(key)) {
+        continue;
+      }
+      const itemData = log.itemData;
+      if (!itemData?.id || !itemData?.media_type) {
+        continue;
+      }
+
+      runtimeRepairCountRef.current += 1;
+      await backfillRuntime(key, itemData.media_type, itemData.id);
+
+      if (
+        initialLoadRunIdRef.current !== runId ||
+        runtimeRepairCountRef.current >= 50
+      ) {
+        return;
+      }
+
+      if (i < candidates.length - 1) {
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, 500);
+        });
+      }
+    }
+  }, [backfillRuntime]);
+
   useEffect(() => {
+    initialLoadRunIdRef.current += 1;
     if (!isAuthenticated) return;
 
     const loadCloudLogs = async () => {
-      const { latest } = await reloadFromCloud();
+      const { latest, ok } = await reloadFromCloud();
       if (latest) {
         setIsLogsLoading(false);
+      }
+      if (ok) {
+        void runtimeRepair();
       }
     };
 
     loadCloudLogs();
-  }, [isAuthenticated, reloadFromCloud]);
+  }, [isAuthenticated, reloadFromCloud, runtimeRepair]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -439,50 +558,55 @@ export function useMediaLogs(
           showToast(
             "Bulut senkronizasyonu başarısız oldu. Değişiklik geri alındı.",
           );
-        } else if (cachedProviders === undefined) {
-          fetchWithAuth(
-            `/api/tmdb?endpoint=/${type}/${item.id}/watch/providers`,
-          )
-            .then((res) => (res.ok ? res.json() : null))
-            .then((data) => {
-              if (data) {
-                const trProviders = data.results?.TR?.flatrate;
-                const fetchedProviders = trProviders
-                  ? trProviders.map((p: WatchProviderInfo) => p.provider_id)
-                  : [];
+        } else {
+          if (cachedProviders === undefined) {
+            fetchWithAuth(
+              `/api/tmdb?endpoint=/${type}/${item.id}/watch/providers`,
+            )
+              .then((res) => (res.ok ? res.json() : null))
+              .then((data) => {
+                if (data) {
+                  const trProviders = data.results?.TR?.flatrate;
+                  const fetchedProviders = trProviders
+                    ? trProviders.map((p: WatchProviderInfo) => p.provider_id)
+                    : [];
 
-                const curr = logsRef.current[key];
-                if (!curr) return;
+                  const curr = logsRef.current[key];
+                  if (!curr) return;
 
-                const silentlyUpdatedLog: LogMetadata = {
-                  ...curr,
-                  providers: fetchedProviders,
-                };
-
-                incrementKeyVersion(key);
-                logsRef.current = {
-                  ...logsRef.current,
-                  [key]: silentlyUpdatedLog,
-                };
-
-                setLogs((prev) => {
-                  const existing = prev[key];
-                  if (!existing) return prev;
-                  return {
-                    ...prev,
-                    [key]: {
-                      ...existing,
-                      providers: fetchedProviders,
-                    },
+                  const silentlyUpdatedLog: LogMetadata = {
+                    ...curr,
+                    providers: fetchedProviders,
                   };
-                });
 
-                enqueueKeyWrite(key, () =>
-                  saveLogToSupabase(key, silentlyUpdatedLog),
-                );
-              }
-            })
-            .catch(() => {});
+                  incrementKeyVersion(key);
+                  logsRef.current = {
+                    ...logsRef.current,
+                    [key]: silentlyUpdatedLog,
+                  };
+
+                  setLogs((prev) => {
+                    const existing = prev[key];
+                    if (!existing) return prev;
+                    return {
+                      ...prev,
+                      [key]: {
+                        ...existing,
+                        providers: fetchedProviders,
+                      },
+                    };
+                  });
+
+                  enqueueKeyWrite(key, () =>
+                    saveLogToSupabase(key, silentlyUpdatedLog),
+                  );
+                }
+              })
+              .catch(() => {});
+          }
+          if (updatedLog.isCompleted && (updatedLog.runtime ?? 0) <= 0) {
+            void backfillRuntime(key, type, item.id);
+          }
         }
       }
     },
@@ -492,6 +616,7 @@ export function useMediaLogs(
       setUndoRecord,
       incrementKeyVersion,
       enqueueKeyWrite,
+      backfillRuntime,
     ],
   );
 
@@ -750,6 +875,7 @@ export function useMediaLogs(
       const key = getItemKey(item);
       const currentLog = logsRef.current[key];
       const isComp = currentLog?.isCompleted;
+      const hadRating = (currentLog?.rating ?? 0) > 0;
       const title = item.title || item.name;
 
       updateLog(
@@ -758,6 +884,7 @@ export function useMediaLogs(
           isCompleted: !isComp,
           isWatchlist: !isComp ? false : currentLog?.isWatchlist,
           watchCount: !isComp ? 1 : 0,
+          ...(isComp ? { rating: 0 } : {}),
         },
         selectedItem,
         detailData,
@@ -766,7 +893,9 @@ export function useMediaLogs(
       showToast(
         !isComp
           ? `"${title}" izlendi olarak işaretlendi.`
-          : `"${title}" izlenenlerden çıkarıldı.`,
+          : hadRating
+            ? `"${title}" izlenenlerden çıkarıldı. Puanı da kaldırıldı.`
+            : `"${title}" izlenenlerden çıkarıldı.`,
       );
     },
     [getItemKey, updateLog, showToast],
@@ -846,6 +975,7 @@ export function useMediaLogs(
         {
           watchCount: count,
           isCompleted: count > 0,
+          ...(count <= 0 ? { rating: 0 } : {}),
         },
         selectedItem,
         detailData,
