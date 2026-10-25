@@ -12,6 +12,69 @@ interface AuthModalProps {
   onClose?: () => void;
 }
 
+function isUserNotFoundError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const code = "code" in err ? String((err as { code?: unknown }).code).toLowerCase() : "";
+  const msg = "message" in err ? String((err as { message?: unknown }).message).toLowerCase() : "";
+  return (
+    code === "user_not_found" ||
+    msg.includes("user not found") ||
+    msg.includes("no user found")
+  );
+}
+
+function mapAuthErrorToTurkish(err: unknown): string {
+  const status =
+    err && typeof err === "object" && "status" in err
+      ? Number((err as { status?: unknown }).status)
+      : undefined;
+  const code =
+    err && typeof err === "object" && "code" in err
+      ? String((err as { code?: unknown }).code).toLowerCase()
+      : "";
+  const msg =
+    err instanceof Error
+      ? err.message.toLowerCase()
+      : err && typeof err === "object" && "message" in err
+        ? String((err as { message?: unknown }).message).toLowerCase()
+        : "";
+
+  if (
+    code === "invalid_credentials" ||
+    msg.includes("invalid login credentials") ||
+    msg.includes("invalid credentials") ||
+    msg.includes("email not confirmed") ||
+    isUserNotFoundError(err)
+  ) {
+    return "Giriş başarısız. Bilgilerinizi kontrol edin.";
+  }
+
+  if (
+    status === 429 ||
+    code.includes("rate_limit") ||
+    code.includes("over_request_rate_limit") ||
+    code.includes("over_email_send_rate_limit") ||
+    msg.includes("rate limit") ||
+    msg.includes("too many requests") ||
+    msg.includes("for security purposes, you can only request this")
+  ) {
+    return "Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin.";
+  }
+
+  if (
+    status === 0 ||
+    msg.includes("failed to fetch") ||
+    msg.includes("networkerror") ||
+    msg.includes("network request failed") ||
+    msg.includes("load failed") ||
+    msg.includes("fetch failed")
+  ) {
+    return "Bağlantı hatası oluştu. İnternet bağlantınızı kontrol edin.";
+  }
+
+  return "İşlem gerçekleştirilemedi. Lütfen tekrar deneyin.";
+}
+
 export default function AuthModal({
   isOpen,
   onSuccess,
@@ -68,7 +131,12 @@ export default function AuthModal({
         );
 
         if (resetError) {
-          throw resetError;
+          if (!isUserNotFoundError(resetError)) {
+            throw resetError;
+          }
+          if (process.env.NODE_ENV !== "production") {
+            console.error(resetError);
+          }
         }
 
         setMessage(
@@ -77,7 +145,7 @@ export default function AuthModal({
         setLoading(false);
       } else if (mode === "set_password") {
         if (!isPasswordValid) {
-          setError("Lütfen şifre kurallarına uygun bir şifre belirlen.");
+          setError("Lütfen şifre kurallarına uygun bir şifre belirleyin.");
           setLoading(false);
           return;
         }
@@ -114,8 +182,7 @@ export default function AuthModal({
         });
 
         if (loginError) {
-          setError("Giriş başarısız. Bilgilerinizi kontrol edin.");
-          setLoading(false);
+          throw loginError;
         } else {
           setLoading(false);
           setPassword("");
@@ -124,8 +191,10 @@ export default function AuthModal({
         }
       }
     } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : "Bir hata oluştu.";
-      setError(errorMsg);
+      if (process.env.NODE_ENV !== "production") {
+        console.error(err);
+      }
+      setError(mapAuthErrorToTurkish(err));
       setLoading(false);
     }
   };

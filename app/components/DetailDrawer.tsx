@@ -187,7 +187,8 @@ export default function DetailDrawer({
       (v) =>
         v.site === "YouTube" && (v.type === "Trailer" || v.type === "Teaser"),
     );
-    return trailer ? trailer.key : detailData.videos.results[0]?.key || null;
+    const key = trailer ? trailer.key : detailData.videos.results[0]?.key || null;
+    return key && /^[A-Za-z0-9_-]{6,20}$/.test(key) ? key : null;
   }, [detailData]);
 
   useEffect(() => {
@@ -670,10 +671,10 @@ export default function DetailDrawer({
             </div>
           </div>
 
-          {showTrailer && trailerKey && (
+          {showTrailer && trailerKey && /^[A-Za-z0-9_-]{6,20}$/.test(trailerKey) && (
             <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-border shadow-xl bg-black animate-in fade-in duration-200">
               <iframe
-                src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1`}
+                src={`https://www.youtube-nocookie.com/embed/${trailerKey}?autoplay=1&rel=0`}
                 title="Fragman"
                 className="w-full h-full border-0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

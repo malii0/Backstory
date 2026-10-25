@@ -60,8 +60,10 @@ export const viewport: Viewport = {
 const themeInitScript = `
 (function () {
   try {
-    var mode = localStorage.getItem('backstory-theme-mode') || 'dark';
-    var accent = localStorage.getItem('backstory-accent-color') || '#f59e0b';
+    var rawMode = localStorage.getItem('backstory-theme-mode');
+    var mode = (rawMode === 'dark' || rawMode === 'light' || rawMode === 'system') ? rawMode : 'dark';
+    var rawAccent = localStorage.getItem('backstory-accent-color');
+    var accent = (rawAccent && /^#[0-9a-fA-F]{6}$/.test(rawAccent)) ? rawAccent : '#f59e0b';
     
     var resolvedMode = mode;
     if (mode === 'system') {
@@ -73,6 +75,7 @@ const themeInitScript = `
 
     function getContrast(hex) {
       var clean = hex.replace('#', '');
+      if (clean.length !== 6) return '#09090b';
       var r = parseInt(clean.slice(0, 2), 16) / 255;
       var g = parseInt(clean.slice(2, 4), 16) / 255;
       var b = parseInt(clean.slice(4, 6), 16) / 255;

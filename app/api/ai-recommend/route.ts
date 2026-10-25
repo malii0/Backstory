@@ -45,7 +45,7 @@ const requestSchema = z.object({
 function sanitizeTitle(item: ItemRef): string {
   const raw = item.title || item.name || "";
   return raw
-    .replace(/[\u0000-\u001F\u007F-\u009F\r\n]+/g, " ")
+    .replace(/[\u0000-\u001F\u007F-\u009F\r\n<>]+/g, " ")
     .trim()
     .slice(0, 100);
 }
@@ -163,6 +163,15 @@ ${JSON.stringify({ favorites: cleanFavorites, watchlist: cleanWatchlist })}
     const rawSuggestions = result.object.suggestions || [];
     const tmdbApiKey = process.env.TMDB_API_KEY;
     const loggedSet = new Set<string>(loggedKeys);
+
+    if (!tmdbApiKey) {
+      console.error("AI RECOMMEND ERROR: TMDB_API_KEY is not configured.");
+      return NextResponse.json({
+        rationale: "Profilinize uygun izlenmemiş yeni içerik bulunamadı.",
+        matchedKeywords: keywords,
+        recommendedItems: [],
+      });
+    }
 
     const searchPromises = rawSuggestions.map(async (sug) => {
       try {

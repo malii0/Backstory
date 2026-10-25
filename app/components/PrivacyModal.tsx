@@ -33,7 +33,31 @@ export default function PrivacyModal({ isOpen, onClose }: PrivacyModalProps) {
             Bu uygulama kapsamında, hesabınıza erişebilmeniz ve izleme
             geçmişinizi cihazlarınız arasında senkronize edebilmeniz amacıyla
             e-posta adresiniz ile uygulama içi izleme verileriniz (kaydettiğiniz
-            içerikler ve puanlarınız) Supabase altyapısında saklanmaktadır.
+            içerikler ve puanlarınız) Supabase (kimlik doğrulama ve PostgreSQL
+            veritabanı) altyapısında saklanmaktadır.
+          </p>
+          <p>
+            Yapay zekâ öneri özelliğini kullandığınızda, yalnızca favorileriniz
+            ve izleme listenizdeki yapımların başlıkları analiz edilmek üzere
+            Groq servisine iletilir; e-posta adresiniz, kullanıcı kimliğiniz
+            veya başka herhangi bir tanımlayıcı bilgi gönderilmez.
+          </p>
+          <p>
+            Arama sorgularınız ve içerik başlığı istekleriniz TMDB servisine
+            yalnızca kendi sunucumuz üzerinden iletilir; bu sayede TMDB arama ve
+            veri isteklerinde sizin IP adresinizi değil, yalnızca sunucumuzu
+            görür.
+          </p>
+          <p>
+            İstek sınırlandırma (rate-limit) sayaçları kullanıcı kimliği ve IP
+            adresi bazında en fazla 24 saat süreyle, önbelleğe alınan TMDB
+            yanıtları ise geçici olarak Upstash Redis üzerinde tutulmaktadır.
+          </p>
+          <p>
+            Uygulama Vercel üzerinde barındırılmakta olup performans ve kullanım
+            ölçümü amacıyla Vercel Analytics ve Speed Insights kullanılmaktadır.
+            YouTube ile yalnızca bir içeriğin fragmanını açtığınızda
+            (youtube-nocookie.com üzerinden) bağlantı kurulur.
           </p>
           <p>
             Kişisel verileriniz hiçbir şekilde üçüncü taraflara satılmaz veya
