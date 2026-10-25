@@ -13,7 +13,7 @@ export async function proxy(request: NextRequest) {
     img-src 'self' https://image.tmdb.org data: blob:;
     font-src 'self' data:;
     frame-src 'self' https://www.youtube-nocookie.com;
-    connect-src 'self' https://*.supabase.co wss://*.supabase.co https://va.vercel-scripts.com https://vitals.vercel-insights.com;
+    connect-src 'self' https://*.supabase.co https://va.vercel-scripts.com https://vitals.vercel-insights.com;
     object-src 'none';
     base-uri 'self';
     form-action 'self';

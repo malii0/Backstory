@@ -34,7 +34,9 @@ export default function PrivacyModal({ isOpen, onClose }: PrivacyModalProps) {
             geçmişinizi cihazlarınız arasında senkronize edebilmeniz amacıyla
             e-posta adresiniz ile uygulama içi izleme verileriniz (kaydettiğiniz
             içerikler ve puanlarınız) Supabase (kimlik doğrulama ve PostgreSQL
-            veritabanı) altyapısında saklanmaktadır.
+            veritabanı) altyapısında saklanmaktadır. İzleme geçmişiniz,
+            uygulamanın daha hızlı açılması için tarayıcınızda yerel olarak da
+            saklanır; çıkış yaptığınızda bu yerel kopya silinir.
           </p>
           <p>
             Yapay zekâ öneri özelliğini kullandığınızda, yalnızca favorileriniz

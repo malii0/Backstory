@@ -12,35 +12,36 @@ import {
   deleteLogFromSupabase,
   saveBulkLogsToSupabase,
   deleteBulkLogsFromSupabase,
-  parseUpdatedAt,
 } from "@/lib/db";
-import { Database } from "@/lib/database.types";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+
+const RUNTIME_SKIP_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export function useMediaLogs(
   isAuthenticated: boolean,
   showToast: (msg: string) => void,
+  isAuthLoading: boolean = false,
 ) {
-  const [logs, setLogs] = useState<Record<string, LogMetadata>>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem("backstory_offline_logs");
-        if (cached) return JSON.parse(cached);
-      } catch {}
-    }
-    return {};
-  });
+  const [logs, setLogs] = useState<Record<string, LogMetadata>>({});
 
   const [isLogsLoading, setIsLogsLoading] = useState<boolean>(true);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const hasLocalData = !!localStorage.getItem("backstory_offline_logs");
-      if (hasLocalData) setIsLogsLoading(false);
+      try {
+        localStorage.removeItem("backstory_offline_logs");
+      } catch {}
     }
   }, []);
 
   const logsRef = useRef<Record<string, LogMetadata>>(logs);
+  const userIdRef = useRef<string | null>(null);
+  const cacheWritableRef = useRef<boolean>(false);
+  const lastReloadAtRef = useRef<number>(0);
+  const runtimeSkipMapRef = useRef<{
+    userId: string;
+    map: Record<string, number>;
+  } | null>(null);
   const initialLoadRunIdRef = useRef<number>(0);
   const runtimeAttemptedKeysRef = useRef<Set<string>>(new Set());
   const runtimeRepairCountRef = useRef<number>(0);
@@ -123,36 +124,77 @@ export function useMediaLogs(
 
   useEffect(() => {
     logsRef.current = logs;
-    if (typeof window !== "undefined") {
-      localStorage.setItem("backstory_offline_logs", JSON.stringify(logs));
+    if (
+      typeof window !== "undefined" &&
+      cacheWritableRef.current &&
+      userIdRef.current
+    ) {
+      try {
+        localStorage.setItem(
+          `backstory_offline_logs:${userIdRef.current}`,
+          JSON.stringify(logs),
+        );
+      } catch {}
     }
   }, [logs]);
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setLogs({});
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("backstory_offline_logs");
-      }
-      setIsLogsLoading(false);
-    }
-  }, [isAuthenticated]);
-
   const fetchRequestIdRef = useRef(0);
+
+  useEffect(() => {
+    if (isAuthLoading || isAuthenticated) return;
+
+    cacheWritableRef.current = false;
+    userIdRef.current = null;
+    runtimeSkipMapRef.current = null;
+    fetchRequestIdRef.current += 1;
+    logsRef.current = {};
+
+    if (typeof window !== "undefined") {
+      try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (
+            key &&
+            (key.startsWith("backstory_offline_logs") ||
+              key.startsWith("backstory_runtime_skip"))
+          ) {
+            keysToRemove.push(key);
+          }
+        }
+        for (const key of keysToRemove) {
+          localStorage.removeItem(key);
+        }
+      } catch {}
+    }
+
+    const clearLoggedOutState = async () => {
+      setLogs({});
+      setIsLogsLoading(false);
+    };
+    void clearLoggedOutState();
+  }, [isAuthenticated, isAuthLoading]);
 
   const reloadFromCloud = useCallback(async (): Promise<{
     latest: boolean;
     ok: boolean;
   }> => {
     const currentRequestId = ++fetchRequestIdRef.current;
+    lastReloadAtRef.current = Date.now();
+    const versionsBeforeFetch = new Map(keyVersionsRef.current);
     const { data, error } = await fetchLogsFromSupabase();
 
     if (currentRequestId === fetchRequestIdRef.current) {
       if (!error && data) {
-        const inFlightKeys = Array.from(writeQueueRef.current.keys());
+        const protectedKeys = new Set<string>(writeQueueRef.current.keys());
+        for (const [key, currentVersion] of keyVersionsRef.current.entries()) {
+          if (versionsBeforeFetch.get(key) !== currentVersion) {
+            protectedKeys.add(key);
+          }
+        }
 
         const mergedForRef: Record<string, LogMetadata> = { ...data };
-        for (const key of inFlightKeys) {
+        for (const key of protectedKeys) {
           if (Object.prototype.hasOwnProperty.call(logsRef.current, key)) {
             mergedForRef[key] = logsRef.current[key];
           } else {
@@ -163,7 +205,7 @@ export function useMediaLogs(
 
         setLogs((prev) => {
           const merged: Record<string, LogMetadata> = { ...data };
-          for (const key of inFlightKeys) {
+          for (const key of protectedKeys) {
             if (Object.prototype.hasOwnProperty.call(prev, key)) {
               merged[key] = prev[key];
             } else {
@@ -180,6 +222,75 @@ export function useMediaLogs(
     return { latest: false, ok: false };
   }, []);
 
+  const getRuntimeSkipMap = useCallback((): Record<string, number> => {
+    const uid = userIdRef.current;
+    if (!uid) return {};
+    if (
+      runtimeSkipMapRef.current &&
+      runtimeSkipMapRef.current.userId === uid
+    ) {
+      return runtimeSkipMapRef.current.map;
+    }
+
+    const cleanMap: Record<string, number> = {};
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem(`backstory_runtime_skip:${uid}`);
+        if (raw) {
+          const parsed: unknown = JSON.parse(raw);
+          if (
+            parsed !== null &&
+            typeof parsed === "object" &&
+            !Array.isArray(parsed)
+          ) {
+            const now = Date.now();
+            let dropped = false;
+            for (const [k, v] of Object.entries(
+              parsed as Record<string, unknown>,
+            )) {
+              if (typeof v === "number" && Number.isFinite(v)) {
+                if (now - v <= RUNTIME_SKIP_TTL_MS) {
+                  cleanMap[k] = v;
+                } else {
+                  dropped = true;
+                }
+              } else {
+                dropped = true;
+              }
+            }
+            if (dropped) {
+              try {
+                localStorage.setItem(
+                  `backstory_runtime_skip:${uid}`,
+                  JSON.stringify(cleanMap),
+                );
+              } catch {}
+            }
+          }
+        }
+      } catch {}
+    }
+
+    runtimeSkipMapRef.current = { userId: uid, map: cleanMap };
+    return cleanMap;
+  }, []);
+
+  const recordRuntimeSkip = useCallback(
+    (key: string) => {
+      const uid = userIdRef.current;
+      if (!uid || typeof window === "undefined") return;
+      const map = getRuntimeSkipMap();
+      map[key] = Date.now();
+      try {
+        localStorage.setItem(
+          `backstory_runtime_skip:${uid}`,
+          JSON.stringify(map),
+        );
+      } catch {}
+    },
+    [getRuntimeSkipMap],
+  );
+
   const backfillRuntime = useCallback(
     async (key: string, type: string, id: number): Promise<void> => {
       if (runtimeAttemptedKeysRef.current.has(key)) return;
@@ -187,6 +298,10 @@ export function useMediaLogs(
 
       try {
         const res = await fetchWithAuth(`/api/tmdb?endpoint=/${type}/${id}`);
+        if (res.status === 404) {
+          recordRuntimeSkip(key);
+          return;
+        }
         if (!res.ok) return;
         const data = await res.json();
         if (!data) return;
@@ -200,7 +315,10 @@ export function useMediaLogs(
           computedRuntime = epCount > 0 ? epCount * epTime : 0;
         }
 
-        if (computedRuntime <= 0) return;
+        if (computedRuntime <= 0) {
+          recordRuntimeSkip(key);
+          return;
+        }
 
         const curr = logsRef.current[key];
         if (!curr || !curr.isCompleted || (curr.runtime ?? 0) > 0) return;
@@ -237,155 +355,137 @@ export function useMediaLogs(
         void enqueueKeyWrite(key, () => saveLogToSupabase(key, updatedLog));
       } catch {}
     },
-    [incrementKeyVersion, enqueueKeyWrite],
+    [incrementKeyVersion, enqueueKeyWrite, recordRuntimeSkip],
   );
 
-  const runtimeRepair = useCallback(async (): Promise<void> => {
-    const runId = initialLoadRunIdRef.current;
+  const runtimeRepair = useCallback(
+    async (runId: number): Promise<void> => {
+      const skipMap = getRuntimeSkipMap();
 
-    const candidates = Object.entries(logsRef.current)
-      .filter(
-        ([key, log]) =>
-          log.isCompleted &&
-          (log.runtime ?? 0) <= 0 &&
-          !runtimeAttemptedKeysRef.current.has(key) &&
-          Boolean(log.itemData?.id && log.itemData?.media_type),
-      )
-      .sort(([, a], [, b]) => {
-        const aOrder = a.itemData?.media_type === "tv" ? 0 : 1;
-        const bOrder = b.itemData?.media_type === "tv" ? 0 : 1;
-        return aOrder - bOrder;
-      });
-
-    for (let i = 0; i < candidates.length; i++) {
-      if (
-        initialLoadRunIdRef.current !== runId ||
-        runtimeRepairCountRef.current >= 50
-      ) {
-        return;
-      }
-
-      const [key, log] = candidates[i];
-      if (runtimeAttemptedKeysRef.current.has(key)) {
-        continue;
-      }
-      const itemData = log.itemData;
-      if (!itemData?.id || !itemData?.media_type) {
-        continue;
-      }
-
-      runtimeRepairCountRef.current += 1;
-      await backfillRuntime(key, itemData.media_type, itemData.id);
-
-      if (
-        initialLoadRunIdRef.current !== runId ||
-        runtimeRepairCountRef.current >= 50
-      ) {
-        return;
-      }
-
-      if (i < candidates.length - 1) {
-        await new Promise<void>((resolve) => {
-          setTimeout(resolve, 500);
+      const candidates = Object.entries(logsRef.current)
+        .filter(
+          ([key, log]) =>
+            log.isCompleted &&
+            (log.runtime ?? 0) <= 0 &&
+            !runtimeAttemptedKeysRef.current.has(key) &&
+            !Object.prototype.hasOwnProperty.call(skipMap, key) &&
+            Boolean(log.itemData?.id && log.itemData?.media_type),
+        )
+        .sort(([, a], [, b]) => {
+          const aOrder = a.itemData?.media_type === "tv" ? 0 : 1;
+          const bOrder = b.itemData?.media_type === "tv" ? 0 : 1;
+          return aOrder - bOrder;
         });
+
+      for (let i = 0; i < candidates.length; i++) {
+        if (
+          initialLoadRunIdRef.current !== runId ||
+          runtimeRepairCountRef.current >= 50
+        ) {
+          return;
+        }
+
+        const [key, log] = candidates[i];
+        if (runtimeAttemptedKeysRef.current.has(key)) {
+          continue;
+        }
+        const itemData = log.itemData;
+        if (!itemData?.id || !itemData?.media_type) {
+          continue;
+        }
+
+        runtimeRepairCountRef.current += 1;
+        await backfillRuntime(key, itemData.media_type, itemData.id);
+
+        if (
+          initialLoadRunIdRef.current !== runId ||
+          runtimeRepairCountRef.current >= 50
+        ) {
+          return;
+        }
+
+        if (i < candidates.length - 1) {
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, 500);
+          });
+        }
       }
-    }
-  }, [backfillRuntime]);
+    },
+    [backfillRuntime, getRuntimeSkipMap],
+  );
 
   useEffect(() => {
     initialLoadRunIdRef.current += 1;
+    const runId = initialLoadRunIdRef.current;
     if (!isAuthenticated) return;
 
     const loadCloudLogs = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (initialLoadRunIdRef.current !== runId) return;
+
+        const uid = session?.user?.id ?? null;
+        userIdRef.current = uid;
+
+        if (uid && typeof window !== "undefined") {
+          try {
+            const raw = localStorage.getItem(`backstory_offline_logs:${uid}`);
+            if (raw) {
+              const parsed: unknown = JSON.parse(raw);
+              if (
+                parsed !== null &&
+                typeof parsed === "object" &&
+                !Array.isArray(parsed)
+              ) {
+                const cachedLogs = parsed as Record<string, LogMetadata>;
+                logsRef.current = cachedLogs;
+                setLogs(cachedLogs);
+                setIsLogsLoading(false);
+              }
+            }
+          } catch {}
+          cacheWritableRef.current = true;
+        }
+      } catch {
+        if (initialLoadRunIdRef.current !== runId) return;
+      }
+
       const { latest, ok } = await reloadFromCloud();
+      if (initialLoadRunIdRef.current !== runId) return;
+
       if (latest) {
         setIsLogsLoading(false);
       }
       if (ok) {
-        void runtimeRepair();
+        void runtimeRepair(runId);
       }
     };
 
-    loadCloudLogs();
+    void loadCloudLogs();
   }, [isAuthenticated, reloadFromCloud, runtimeRepair]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-
-    const setupRealtime = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const channelId = `media_logs_changes_${user.id}_${Math.random().toString(36).substring(2, 9)}`;
-
-      channel = supabase
-        .channel(channelId)
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "media_logs",
-            filter: `user_id=eq.${user.id}`,
-          },
-          (payload) => {
-            if (
-              payload.eventType === "INSERT" ||
-              payload.eventType === "UPDATE"
-            ) {
-              const row =
-                payload.new as Database["public"]["Tables"]["media_logs"]["Row"];
-              const incomingUpdatedAt = parseUpdatedAt(row.updated_at);
-
-              const incomingLog: LogMetadata = {
-                isCompleted: row.is_completed ?? false,
-                isWatchlist: row.is_watchlist ?? false,
-                rating: row.rating ?? 0,
-                watchCount: row.watch_count ?? 0,
-                itemData: row.item_data as unknown as MediaItem,
-                runtime: row.runtime ?? 0,
-                updatedAt: incomingUpdatedAt,
-                providers: (row.item_data as Record<string, unknown>)
-                  ?.cached_providers as number[] | undefined,
-              };
-
-              setLogs((prev) => {
-                const existing = prev[row.key];
-                if (existing && (existing.updatedAt ?? 0) > incomingUpdatedAt) {
-                  return prev;
-                }
-                return {
-                  ...prev,
-                  [row.key]: incomingLog,
-                };
-              });
-            } else if (payload.eventType === "DELETE") {
-              const deletedKey = (payload.old as { key?: string })?.key;
-              if (deletedKey) {
-                setLogs((prev) => {
-                  const updated = { ...prev };
-                  delete updated[deletedKey];
-                  return updated;
-                });
-              }
-            }
-          },
-        )
-        .subscribe();
-    };
-
-    setupRealtime();
-
-    return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
+    const handleReturnOrOnline = () => {
+      if (
+        document.visibilityState === "visible" &&
+        Date.now() - lastReloadAtRef.current >= 30_000
+      ) {
+        void reloadFromCloud();
       }
     };
-  }, [isAuthenticated]);
+
+    document.addEventListener("visibilitychange", handleReturnOrOnline);
+    window.addEventListener("online", handleReturnOrOnline);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleReturnOrOnline);
+      window.removeEventListener("online", handleReturnOrOnline);
+    };
+  }, [isAuthenticated, reloadFromCloud]);
 
   const getItemKey = useCallback(
     (item: { media_type: string; id: number }) =>

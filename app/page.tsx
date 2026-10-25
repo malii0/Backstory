@@ -94,7 +94,11 @@ export default function Home() {
   const isLoginModalVisible =
     auth.isAuthModalOpen && (auth.isInviteMode || showLogin);
 
-  const logsManager = useMediaLogs(auth.isAuthenticated, showToast);
+  const logsManager = useMediaLogs(
+    auth.isAuthenticated,
+    showToast,
+    auth.isAuthLoading,
+  );
   const explore = useTmdbExplore(activeTab, auth.isAuthenticated);
   const recommendations = useRecommendations(logsManager.logs);
 
