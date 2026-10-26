@@ -21,7 +21,6 @@ import {
 
 interface StatsDashboardProps {
   logs: Record<string, LogMetadata>;
-  onNavigateToExplore?: () => void;
   onOpenRatingManager?: () => void;
   onSelectItem?: (item: MediaItem) => void;
   onToggleCompleted: (item: MediaItem) => void;

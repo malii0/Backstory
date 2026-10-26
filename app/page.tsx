@@ -283,7 +283,10 @@ export default function Home() {
   }, [explore]);
 
   useEffect(() => {
-    if (explore.showFilters) {
+    if (
+      explore.showFilters &&
+      window.matchMedia("(hover: hover) and (pointer: fine)").matches
+    ) {
       setTimeout(() => {
         modalSearchInputRef.current?.focus();
       }, 150);
@@ -546,7 +549,6 @@ export default function Home() {
         {activeTab === "stats" ? (
           <StatsDashboard
             logs={logsManager.logs}
-            onNavigateToExplore={() => setActiveTab("explore")}
             onOpenRatingManager={() => setIsRatingManagerOpen(true)}
             onSelectItem={handleSelectItem}
             onToggleCompleted={handleCardToggleCompleted}

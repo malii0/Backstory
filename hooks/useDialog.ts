@@ -95,9 +95,9 @@ export function useDialog({
         !autoFocusEl.hasAttribute("disabled") &&
         isElementVisible(autoFocusEl, container)
       ) {
-        autoFocusEl.focus();
+        autoFocusEl.focus({ preventScroll: true });
       } else {
-        container.focus();
+        container.focus({ preventScroll: true });
       }
     }
 
@@ -123,7 +123,7 @@ export function useDialog({
         const focusables = getFocusableElements(currentContainer);
         if (focusables.length === 0) {
           event.preventDefault();
-          currentContainer.focus();
+          currentContainer.focus({ preventScroll: true });
           return;
         }
 
@@ -169,7 +169,7 @@ export function useDialog({
       }
 
       if (previouslyFocused && document.contains(previouslyFocused)) {
-        previouslyFocused.focus();
+        previouslyFocused.focus({ preventScroll: true });
       }
     };
   }, [isOpen, containerRef]);

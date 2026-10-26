@@ -36,7 +36,6 @@ interface DetailDrawerProps {
   isDetailLoading: boolean;
   detailError: string | null;
   currentLog?: LogMetadata;
-  readOnly?: boolean;
   onClose: () => void;
   onGenreSelect?: (genreId: number) => void;
   onSelectItem?: (item: MediaItem) => void;
@@ -73,7 +72,6 @@ export default function DetailDrawer({
   isDetailLoading,
   detailError,
   currentLog,
-  readOnly = false,
   onClose,
   onGenreSelect,
   onSelectItem,
@@ -108,7 +106,7 @@ export default function DetailDrawer({
 
   useEffect(() => {
     const el = starContainerRef.current;
-    if (!el || readOnly) return;
+    if (!el) return;
 
     const handleNativeTouchMove = (e: TouchEvent) => {
       if (!e.touches[0]) return;
@@ -123,7 +121,7 @@ export default function DetailDrawer({
 
     el.addEventListener("touchmove", handleNativeTouchMove, { passive: false });
     return () => el.removeEventListener("touchmove", handleNativeTouchMove);
-  }, [readOnly]);
+  }, []);
 
   const [prevSelectedItem, setPrevSelectedItem] = useState(selectedItem);
   if (selectedItem !== prevSelectedItem) {
@@ -347,7 +345,7 @@ export default function DetailDrawer({
   const castList = detailData?.credits?.cast?.slice(0, 10) || [];
 
   const handleStarClick = (targetRating: number) => {
-    if (readOnly || !onUpdateRating) return;
+    if (!onUpdateRating) return;
     if ((currentLog?.rating || 0) === targetRating) {
       onUpdateRating(0);
     } else {
@@ -356,12 +354,11 @@ export default function DetailDrawer({
   };
 
   const handleTouchStart = () => {
-    if (readOnly) return;
     isTouchDraggingRef.current = false;
   };
 
   const handleTouchEnd = () => {
-    if (readOnly || !onUpdateRating) return;
+    if (!onUpdateRating) return;
     if (isTouchDraggingRef.current && touchRating !== null) {
       if ((currentLog?.rating || 0) === touchRating) {
         onUpdateRating(0);
@@ -744,7 +741,7 @@ export default function DetailDrawer({
                   >
                     <div className="w-5 h-5 relative rounded-md overflow-hidden flex-shrink-0">
                       <Image
-                        src={`https://image.tmdb.org/t/p/original${p.logo_path}`}
+                        src={`https://image.tmdb.org/t/p/w92${p.logo_path}`}
                         alt={p.provider_name}
                         fill
                         sizes="20px"
@@ -780,106 +777,104 @@ export default function DetailDrawer({
             </div>
           )}
 
-          {!readOnly && (
-            <div className="bg-card/80 border border-border/80 p-4 rounded-2xl space-y-4">
-              <div className="flex gap-2">
-                <button
-                  onClick={onToggleCompleted}
-                  className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
-                    currentLog?.isCompleted
-                      ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
-                      : "bg-background border-border text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Eye className="w-4 h-4" />
-                  {currentLog?.isCompleted ? "İzlendi" : "İzledim"}
-                </button>
+          <div className="bg-card/80 border border-border/80 p-4 rounded-2xl space-y-4">
+            <div className="flex gap-2">
+              <button
+                onClick={onToggleCompleted}
+                className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                  currentLog?.isCompleted
+                    ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Eye className="w-4 h-4" />
+                {currentLog?.isCompleted ? "İzlendi" : "İzledim"}
+              </button>
 
-                <button
-                  onClick={onToggleWatchlist}
-                  className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
-                    currentLog?.isWatchlist
-                      ? "bg-accent/20 border-accent/40 text-accent"
-                      : "bg-background border-border text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Bookmark className="w-4 h-4" />
-                  {currentLog?.isWatchlist ? "Listede" : "İzleyeceğim"}
-                </button>
-              </div>
-
-              <div className="pt-2 border-t border-border/60 flex flex-col gap-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Puanınız:
-                  </span>
-                  <span className="text-xs font-bold text-accent">
-                    {activeDisplayRating > 0
-                      ? `${activeDisplayRating} / 10`
-                      : "Puan Yok"}
-                  </span>
-                </div>
-
-                <div
-                  ref={starContainerRef}
-                  onTouchStart={handleTouchStart}
-                  onTouchEnd={handleTouchEnd}
-                  className="flex items-center justify-between py-2 px-1 select-none"
-                >
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => handleStarClick(star)}
-                      className="p-1 transition-transform active:scale-125 rounded focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
-                      title={`${star} Puan`}
-                      aria-label={`${star} puan ver`}
-                      aria-pressed={(currentLog?.rating || 0) === star}
-                    >
-                      <Star
-                        className={`w-5 h-5 sm:w-6 sm:h-6 transition-colors ${
-                          activeDisplayRating >= star
-                            ? "text-accent fill-accent"
-                            : "text-muted border-border"
-                        }`}
-                      />
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {currentLog?.isCompleted && onUpdateWatchCount && (
-                <div className="pt-2 border-t border-border/60 flex items-center justify-between">
-                  <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                    <RotateCcw className="w-3.5 h-3.5 text-accent" />
-                    İzleme Sayısı:
-                  </span>
-                  <div className="flex items-center gap-2 bg-background border border-border rounded-xl p-1">
-                    <button
-                      onClick={() =>
-                        onUpdateWatchCount(Math.max(1, currentWatchCount - 1))
-                      }
-                      aria-label="İzlenme sayısını azalt"
-                      className="p-1 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-colors"
-                      disabled={currentWatchCount <= 1}
-                    >
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="text-xs font-bold text-foreground px-2">
-                      {currentWatchCount}
-                    </span>
-                    <button
-                      onClick={() => onUpdateWatchCount(currentWatchCount + 1)}
-                      aria-label="İzlenme sayısını artır"
-                      className="p-1 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-colors"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              )}
+              <button
+                onClick={onToggleWatchlist}
+                className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${
+                  currentLog?.isWatchlist
+                    ? "bg-accent/20 border-accent/40 text-accent"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Bookmark className="w-4 h-4" />
+                {currentLog?.isWatchlist ? "Listede" : "İzleyeceğim"}
+              </button>
             </div>
-          )}
+
+            <div className="pt-2 border-t border-border/60 flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Puanınız:
+                </span>
+                <span className="text-xs font-bold text-accent">
+                  {activeDisplayRating > 0
+                    ? `${activeDisplayRating} / 10`
+                    : "Puan Yok"}
+                </span>
+              </div>
+
+              <div
+                ref={starContainerRef}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+                className="flex items-center justify-between py-2 px-1 select-none"
+              >
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => handleStarClick(star)}
+                    className="p-1 transition-transform active:scale-125 rounded focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+                    title={`${star} Puan`}
+                    aria-label={`${star} puan ver`}
+                    aria-pressed={(currentLog?.rating || 0) === star}
+                  >
+                    <Star
+                      className={`w-5 h-5 sm:w-6 sm:h-6 transition-colors ${
+                        activeDisplayRating >= star
+                          ? "text-accent fill-accent"
+                          : "text-muted border-border"
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {currentLog?.isCompleted && onUpdateWatchCount && (
+              <div className="pt-2 border-t border-border/60 flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <RotateCcw className="w-3.5 h-3.5 text-accent" />
+                  İzleme Sayısı:
+                </span>
+                <div className="flex items-center gap-2 bg-background border border-border rounded-xl p-1">
+                  <button
+                    onClick={() =>
+                      onUpdateWatchCount(Math.max(1, currentWatchCount - 1))
+                    }
+                    aria-label="İzlenme sayısını azalt"
+                    className="p-1 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-colors"
+                    disabled={currentWatchCount <= 1}
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-xs font-bold text-foreground px-2">
+                    {currentWatchCount}
+                  </span>
+                  <button
+                    onClick={() => onUpdateWatchCount(currentWatchCount + 1)}
+                    aria-label="İzlenme sayısını artır"
+                    className="p-1 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {castList.length > 0 && (
             <div className="space-y-2.5">

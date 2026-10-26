@@ -1,7 +1,7 @@
 export const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
 export const TMDB_IMAGE_ORIGINAL = "https://image.tmdb.org/t/p/original";
 
-export const STATS_TIER_THRESHOLDS = { BASIC: 10, FULL: 50 };
+export const STATS_TIER_THRESHOLDS = { BASIC: 10 };
 
 export const GENRES_LIST = [
   {

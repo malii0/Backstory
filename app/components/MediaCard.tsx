@@ -19,9 +19,7 @@ import { onActivateKey } from "@/lib/a11y";
 interface MediaCardProps {
   item: MediaItem;
   log?: LogMetadata;
-  viewerLog?: LogMetadata;
   isNowPlaying?: boolean;
-  readOnly?: boolean;
   onSelect?: (item: MediaItem) => void;
   onToggleCompleted?: (item: MediaItem) => void;
   onToggleWatchlist?: (item: MediaItem) => void;
@@ -30,9 +28,7 @@ interface MediaCardProps {
 function MediaCardComponent({
   item,
   log,
-  viewerLog,
   isNowPlaying,
-  readOnly = false,
   onSelect,
   onToggleCompleted,
   onToggleWatchlist,
@@ -48,11 +44,6 @@ function MediaCardComponent({
   const isCompleted = !!log?.isCompleted;
   const isWatchlist = !!log?.isWatchlist;
   const userRating = log?.rating ?? 0;
-
-  const viewerIsCompleted =
-    viewerLog !== undefined ? !!viewerLog.isCompleted : isCompleted;
-  const viewerIsWatchlist =
-    viewerLog !== undefined ? !!viewerLog.isWatchlist : isWatchlist;
 
   const handleSelect = useCallback(() => {
     if (onSelect) onSelect(item);
@@ -157,59 +148,57 @@ function MediaCardComponent({
           </div>
         )}
 
-        {!readOnly && (
-          <div className="absolute top-2 right-2 flex flex-col gap-1.5 opacity-100 [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:group-focus-within:opacity-100 transition-opacity z-20">
-            <button
-              onClick={handleCompleted}
-              aria-label={
-                viewerIsCompleted
-                  ? "İzlenenlerden çıkar"
-                  : "İzlendi olarak işaretle"
-              }
-              aria-pressed={viewerIsCompleted}
-              style={
-                viewerIsCompleted
-                  ? {
-                      backgroundColor: "var(--app-completed)",
-                      borderColor: "var(--app-completed)",
-                      color: "var(--app-completed-foreground)",
-                    }
-                  : undefined
-              }
-              className={`p-2 rounded-xl backdrop-blur-md border transition-all ${
-                viewerIsCompleted
-                  ? "font-bold shadow-md"
-                  : "bg-background/80 border-border text-muted-foreground hover:text-foreground shadow-md"
-              }`}
-              title={
-                viewerIsCompleted ? "İzlenenlerden Çıkar" : "İzlendi İşaretle"
-              }
-            >
-              <Eye className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={handleWatchlist}
-              aria-label={
-                viewerIsWatchlist
-                  ? "İzleme listesinden çıkar"
-                  : "İzleme listesine ekle"
-              }
-              aria-pressed={viewerIsWatchlist}
-              className={`p-2 rounded-xl backdrop-blur-md border transition-all ${
-                viewerIsWatchlist
-                  ? "bg-accent border-accent text-accent-foreground font-bold shadow-md"
-                  : "bg-background/80 border-border text-muted-foreground hover:text-foreground shadow-md"
-              }`}
-              title={
-                viewerIsWatchlist
-                  ? "İzleme Listesinden Çıkar"
-                  : "İzleme Listesine Ekle"
-              }
-            >
-              <Bookmark className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
+        <div className="absolute top-2 right-2 flex flex-col gap-1.5 opacity-100 [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:group-focus-within:opacity-100 transition-opacity z-20">
+          <button
+            onClick={handleCompleted}
+            aria-label={
+              isCompleted
+                ? "İzlenenlerden çıkar"
+                : "İzlendi olarak işaretle"
+            }
+            aria-pressed={isCompleted}
+            style={
+              isCompleted
+                ? {
+                    backgroundColor: "var(--app-completed)",
+                    borderColor: "var(--app-completed)",
+                    color: "var(--app-completed-foreground)",
+                  }
+                : undefined
+            }
+            className={`p-2 rounded-xl backdrop-blur-md border transition-all ${
+              isCompleted
+                ? "font-bold shadow-md"
+                : "bg-background/80 border-border text-muted-foreground hover:text-foreground shadow-md"
+            }`}
+            title={
+              isCompleted ? "İzlenenlerden Çıkar" : "İzlendi İşaretle"
+            }
+          >
+            <Eye className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={handleWatchlist}
+            aria-label={
+              isWatchlist
+                ? "İzleme listesinden çıkar"
+                : "İzleme listesine ekle"
+            }
+            aria-pressed={isWatchlist}
+            className={`p-2 rounded-xl backdrop-blur-md border transition-all ${
+              isWatchlist
+                ? "bg-accent border-accent text-accent-foreground font-bold shadow-md"
+                : "bg-background/80 border-border text-muted-foreground hover:text-foreground shadow-md"
+            }`}
+            title={
+              isWatchlist
+                ? "İzleme Listesinden Çıkar"
+                : "İzleme Listesine Ekle"
+            }
+          >
+            <Bookmark className="w-3.5 h-3.5" />
+          </button>
+        </div>
 
         <div className="absolute bottom-2 left-2 flex items-center gap-1 z-10">
           {isCompleted && (
@@ -276,16 +265,12 @@ export default React.memo(MediaCardComponent, (prev, next) => {
     prev.item.recommendationSource === next.item.recommendationSource &&
     prev.item.matchScore === next.item.matchScore &&
     prev.isNowPlaying === next.isNowPlaying &&
-    prev.readOnly === next.readOnly &&
     prev.onSelect === next.onSelect &&
     prev.onToggleCompleted === next.onToggleCompleted &&
     prev.onToggleWatchlist === next.onToggleWatchlist &&
     prev.log?.isCompleted === next.log?.isCompleted &&
     prev.log?.isWatchlist === next.log?.isWatchlist &&
     prev.log?.rating === next.log?.rating &&
-    prev.log?.watchCount === next.log?.watchCount &&
-    prev.viewerLog?.isCompleted === next.viewerLog?.isCompleted &&
-    prev.viewerLog?.isWatchlist === next.viewerLog?.isWatchlist &&
-    prev.viewerLog?.rating === next.viewerLog?.rating
+    prev.log?.watchCount === next.log?.watchCount
   );
 });

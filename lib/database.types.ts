@@ -8,6 +8,7 @@ export type Json =
 
 export interface Database {
   public: {
+    // The profiles table type was removed manually because the feature was removed.
     Tables: {
       media_logs: {
         Row: {
@@ -33,27 +34,6 @@ export interface Database {
           updated_at?: number | string;
         };
         Update: Partial<Database["public"]["Tables"]["media_logs"]["Insert"]>;
-      };
-      profiles: {
-        Row: {
-          id: string;
-          username: string;
-          display_name: string | null;
-          avatar_url: string | null;
-          updated_at: string;
-          is_public?: boolean | null;
-          has_seen_announcement?: boolean | null;
-        };
-        Insert: {
-          id: string;
-          username: string;
-          display_name?: string | null;
-          avatar_url?: string | null;
-          updated_at?: string;
-          is_public?: boolean | null;
-          has_seen_announcement?: boolean | null;
-        };
-        Update: Partial<Database["public"]["Tables"]["profiles"]["Insert"]>;
       };
     };
   };

@@ -248,7 +248,7 @@ export function useTmdbExplore(
             minVotes = type === "tv" ? 800 : 3000;
           }
 
-          let effectiveSortBy =
+          const effectiveSortBy =
             sortBy === "my_rating.desc" ||
             sortBy === "watch_count.desc" ||
             sortBy === "updated_at.desc"

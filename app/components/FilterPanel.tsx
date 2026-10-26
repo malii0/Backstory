@@ -50,6 +50,7 @@ export default function FilterPanel({
         aria-modal={show ? "true" : undefined}
         aria-labelledby={show ? "filter-panel-title" : undefined}
         aria-hidden={!show ? "true" : undefined}
+        inert={!show}
         tabIndex={-1}
         className={`fixed inset-x-0 bottom-0 z-50 bg-card border-t border-border rounded-t-3xl p-5 space-y-4 shadow-2xl max-h-[75vh] overflow-y-auto no-scrollbar max-w-2xl mx-auto transition-transform duration-300 ease-out will-change-transform outline-none ${
           show ? "translate-y-0" : "translate-y-full"
