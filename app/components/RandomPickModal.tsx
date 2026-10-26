@@ -24,6 +24,7 @@ export default function RandomPickModal({
       <div className="bg-card border border-border p-6 rounded-3xl max-w-sm w-full space-y-4 text-center shadow-2xl relative animate-in fade-in zoom-in-95">
         <button
           onClick={onClose}
+          aria-label="Kapat"
           className="absolute top-4 right-4 text-muted-foreground hover:text-foreground p-1"
         >
           <X className="w-4 h-4" />

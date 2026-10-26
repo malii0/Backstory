@@ -1,11 +1,12 @@
 "use client";
 
 import React from "react";
-import { CheckCircle2, RotateCcw } from "lucide-react";
+import { CheckCircle2, AlertCircle, RotateCcw } from "lucide-react";
 
 export interface ToastItemData {
   id: string;
   message: string;
+  type?: "success" | "error";
 }
 
 interface ToastListProps {
@@ -25,7 +26,11 @@ export default function ToastList({ toasts, onUndo, canUndo }: ToastListProps) {
           className="bg-card border border-border text-foreground text-xs px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 pointer-events-auto animate-in fade-in slide-in-from-bottom-2 duration-200"
         >
           <div className="flex items-center gap-2 truncate">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            {t.type === "error" ? (
+              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            )}
             <span className="truncate">{t.message}</span>
           </div>
           {canUndo && index === toasts.length - 1 && (

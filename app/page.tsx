@@ -79,9 +79,9 @@ export default function Home() {
   }, []);
 
   const showToast = useCallback(
-    (msg: string) => {
+    (msg: string, type?: "success" | "error") => {
       const id = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      setToasts((prev) => [...prev.slice(-2), { id, message: msg }]);
+      setToasts((prev) => [...prev.slice(-2), { id, message: msg, type }]);
       setTimeout(() => {
         dismissToast(id);
       }, 6000);
@@ -252,7 +252,8 @@ export default function Home() {
       randomPick ||
       isLoginModalVisible ||
       isRatingManagerOpen ||
-      isPrivacyModalOpen
+      isPrivacyModalOpen ||
+      explore.showFilters
     ) {
       document.body.style.overflow = "hidden";
     } else {
@@ -267,6 +268,7 @@ export default function Home() {
     isLoginModalVisible,
     isRatingManagerOpen,
     isPrivacyModalOpen,
+    explore.showFilters,
   ]);
 
   useEffect(() => {
@@ -573,7 +575,7 @@ export default function Home() {
                     onClick={handleSelectPersonalized}
                     className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap flex items-center gap-1.5 ${
                       explore.exploreMode === "personalized"
-                        ? "bg-purple-500/20 border-purple-500/40 text-purple-300 shadow-sm"
+                        ? "bg-purple-500/20 border-purple-500/40 text-purple-300 [[data-theme=light]_&]:text-purple-700 shadow-sm"
                         : "bg-card/60 border-border/80 text-muted-foreground hover:text-purple-400"
                     }`}
                   >
@@ -642,6 +644,7 @@ export default function Home() {
                     {explore.query ? (
                       <button
                         onClick={() => explore.setQuery("")}
+                        aria-label="Aramayı temizle"
                         className="text-muted-foreground hover:text-foreground p-1"
                       >
                         <X className="w-4 h-4" />
@@ -656,6 +659,8 @@ export default function Home() {
 
                 <button
                   onClick={() => explore.setShowFilters(!explore.showFilters)}
+                  aria-label="Filtreleri aç veya kapat"
+                  aria-pressed={explore.showFilters}
                   className={`relative p-3 rounded-2xl border transition-all flex items-center justify-center flex-shrink-0 ${
                     explore.showFilters || explore.activeFilterCount > 0
                       ? "bg-accent/10 border-accent/30 text-accent"
@@ -671,111 +676,124 @@ export default function Home() {
                 </button>
               </div>
 
-              {explore.activeFilterCount > 0 && (
-                <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">
-                    Aktif:
-                  </span>
+              {explore.activeFilterCount > 0 &&
+                (explore.query.trim() !== "" ||
+                  (explore.exploreMode !== "standard" &&
+                    activeTab === "explore") ||
+                  explore.selectedMediaType !== "all" ||
+                  (!(activeTab === "explore" && explore.query.trim() !== "") &&
+                    (explore.minRating > 0 ||
+                      explore.isYearRangeActive ||
+                      explore.selectedGenreId !== null ||
+                      explore.selectedProviderId !== null))) && (
+                  <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      Aktif:
+                    </span>
 
-                  {explore.query.trim() !== "" && (
-                    <button
-                      onClick={() => explore.setQuery("")}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-card border border-border rounded-lg text-xs text-accent transition-colors whitespace-nowrap"
-                    >
-                      <span>Arama: &quot;{explore.query}&quot;</span>
-                      <X className="w-3.5 h-3.5 text-muted-foreground" />
-                    </button>
-                  )}
-
-                  {explore.exploreMode !== "standard" &&
-                    activeTab === "explore" && (
+                    {explore.query.trim() !== "" && (
                       <button
-                        onClick={() => explore.setExploreMode("standard")}
+                        onClick={() => explore.setQuery("")}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-card border border-border rounded-lg text-xs text-accent transition-colors whitespace-nowrap"
+                      >
+                        <span>Arama: &quot;{explore.query}&quot;</span>
+                        <X className="w-3.5 h-3.5 text-muted-foreground" />
+                      </button>
+                    )}
+
+                    {explore.exploreMode !== "standard" &&
+                      activeTab === "explore" && (
+                        <button
+                          onClick={() => explore.setExploreMode("standard")}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-card border border-border rounded-lg text-xs text-accent transition-colors whitespace-nowrap"
+                        >
+                          <span>
+                            {explore.exploreMode === "now_playing"
+                              ? "Vizyondakiler"
+                              : explore.exploreMode === "personalized"
+                                ? "Sana Özel"
+                                : "Yakında Gelecekler"}
+                          </span>
+                          <X className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                      )}
+
+                    {explore.selectedMediaType !== "all" && (
+                      <button
+                        onClick={() => explore.setSelectedMediaType("all")}
                         className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-card border border-border rounded-lg text-xs text-accent transition-colors whitespace-nowrap"
                       >
                         <span>
-                          {explore.exploreMode === "now_playing"
-                            ? "Vizyondakiler"
-                            : explore.exploreMode === "personalized"
-                              ? "Sana Özel"
-                              : "Yakında Gelecekler"}
+                          {explore.selectedMediaType === "movie"
+                            ? "Filmler"
+                            : "Diziler"}
                         </span>
                         <X className="w-3.5 h-3.5 text-muted-foreground" />
                       </button>
                     )}
 
-                  {explore.selectedMediaType !== "all" && (
-                    <button
-                      onClick={() => explore.setSelectedMediaType("all")}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-card border border-border rounded-lg text-xs text-accent transition-colors whitespace-nowrap"
-                    >
-                      <span>
-                        {explore.selectedMediaType === "movie"
-                          ? "Filmler"
-                          : "Diziler"}
-                      </span>
-                      <X className="w-3.5 h-3.5 text-muted-foreground" />
-                    </button>
-                  )}
+                    {!(activeTab === "explore" && explore.query.trim() !== "") &&
+                      explore.minRating > 0 && (
+                        <button
+                          onClick={() => explore.setMinRating(0)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-card border border-border rounded-lg text-xs text-accent transition-colors whitespace-nowrap"
+                        >
+                          <span>{explore.minRating.toFixed(1)}+ Puan</span>
+                          <X className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                      )}
 
-                  {explore.minRating > 0 && (
-                    <button
-                      onClick={() => explore.setMinRating(0)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-card border border-border rounded-lg text-xs text-accent transition-colors whitespace-nowrap"
-                    >
-                      <span>{explore.minRating.toFixed(1)}+ Puan</span>
-                      <X className="w-3.5 h-3.5 text-muted-foreground" />
-                    </button>
-                  )}
+                    {!(activeTab === "explore" && explore.query.trim() !== "") &&
+                      explore.isYearRangeActive && (
+                        <button
+                          onClick={() => explore.setYearRange(DEFAULT_YEAR_RANGE)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-card border border-border rounded-lg text-xs text-accent transition-colors whitespace-nowrap"
+                        >
+                          <span>
+                            {explore.yearRange.start} - {explore.yearRange.end}
+                          </span>
+                          <X className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                      )}
 
-                  {explore.isYearRangeActive && (
-                    <button
-                      onClick={() => explore.setYearRange(DEFAULT_YEAR_RANGE)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-card border border-border rounded-lg text-xs text-accent transition-colors whitespace-nowrap"
-                    >
-                      <span>
-                        {explore.yearRange.start} - {explore.yearRange.end}
-                      </span>
-                      <X className="w-3.5 h-3.5 text-muted-foreground" />
-                    </button>
-                  )}
+                    {!(activeTab === "explore" && explore.query.trim() !== "") &&
+                      explore.selectedGenreId !== null && (
+                        <button
+                          onClick={() => explore.setSelectedGenreId(null)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-card border border-border rounded-lg text-xs text-accent transition-colors whitespace-nowrap"
+                        >
+                          <span>
+                            {GENRES_LIST.find(
+                              (g) => g.id === explore.selectedGenreId,
+                            )?.name || "Kategori"}
+                          </span>
+                          <X className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                      )}
 
-                  {explore.selectedGenreId !== null && (
-                    <button
-                      onClick={() => explore.setSelectedGenreId(null)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-card border border-border rounded-lg text-xs text-accent transition-colors whitespace-nowrap"
-                    >
-                      <span>
-                        {GENRES_LIST.find(
-                          (g) => g.id === explore.selectedGenreId,
-                        )?.name || "Kategori"}
-                      </span>
-                      <X className="w-3.5 h-3.5 text-muted-foreground" />
-                    </button>
-                  )}
+                    {!(activeTab === "explore" && explore.query.trim() !== "") &&
+                      explore.selectedProviderId !== null && (
+                        <button
+                          onClick={() => explore.setSelectedProviderId(null)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-card border border-border rounded-lg text-xs text-accent transition-colors whitespace-nowrap"
+                        >
+                          <span>
+                            {explore.providers.find(
+                              (p) => p.provider_id === explore.selectedProviderId,
+                            )?.provider_name || "Platform"}
+                          </span>
+                          <X className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                      )}
 
-                  {explore.selectedProviderId !== null && (
                     <button
-                      onClick={() => explore.setSelectedProviderId(null)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-card border border-border rounded-lg text-xs text-accent transition-colors whitespace-nowrap"
+                      onClick={explore.handleResetFilters}
+                      className="text-xs text-muted-foreground hover:text-foreground underline ml-auto whitespace-nowrap"
                     >
-                      <span>
-                        {explore.providers.find(
-                          (p) => p.provider_id === explore.selectedProviderId,
-                        )?.provider_name || "Platform"}
-                      </span>
-                      <X className="w-3.5 h-3.5 text-muted-foreground" />
+                      Temizle
                     </button>
-                  )}
-
-                  <button
-                    onClick={explore.handleResetFilters}
-                    className="text-xs text-muted-foreground hover:text-foreground underline ml-auto whitespace-nowrap"
-                  >
-                    Temizle
-                  </button>
-                </div>
-              )}
+                  </div>
+                )}
 
               <FilterPanel
                 show={explore.showFilters}
@@ -818,7 +836,7 @@ export default function Home() {
                       onClick={() =>
                         recommendations.fetchRecommendations(undefined, true)
                       }
-                      className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                      className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 [[data-theme=light]_&]:text-purple-700 border border-purple-500/30 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
                     >
                       <RefreshCw className="w-3.5 h-3.5" /> Yeniden Hesapla
                     </button>

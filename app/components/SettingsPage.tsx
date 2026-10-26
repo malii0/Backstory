@@ -171,8 +171,8 @@ export default function SettingsPage() {
           <div
             className={`p-3 rounded-xl text-xs border animate-in fade-in duration-300 ${
               passwordMsg.isError
-                ? "bg-red-950/50 text-red-400 border-red-900/50"
-                : "bg-emerald-950/50 text-emerald-400 border-emerald-900/50"
+                ? "bg-red-950/50 text-red-400 border-red-900/50 [[data-theme=light]_&]:bg-red-50 [[data-theme=light]_&]:text-red-600 [[data-theme=light]_&]:border-red-200"
+                : "bg-emerald-950/50 text-emerald-400 border-emerald-900/50 [[data-theme=light]_&]:bg-emerald-50 [[data-theme=light]_&]:text-emerald-700 [[data-theme=light]_&]:border-emerald-200"
             }`}
           >
             {passwordMsg.text}

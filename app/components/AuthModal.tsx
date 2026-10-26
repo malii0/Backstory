@@ -143,6 +143,7 @@ export default function AuthModal({
         {onClose && mode !== "set_password" && (
           <button
             onClick={onClose}
+            aria-label="Kapat"
             className="absolute top-4 right-4 text-muted-foreground hover:text-foreground p-1"
           >
             <X className="w-4 h-4" />
@@ -178,13 +179,13 @@ export default function AuthModal({
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           {error && (
-            <div className="p-3 text-xs text-red-400 bg-red-950/50 border border-red-900/50 rounded-xl text-center">
+            <div className="p-3 text-xs text-red-400 bg-red-950/50 border border-red-900/50 [[data-theme=light]_&]:bg-red-50 [[data-theme=light]_&]:text-red-600 [[data-theme=light]_&]:border-red-200 rounded-xl text-center">
               {error}
             </div>
           )}
 
           {message && (
-            <div className="p-3 text-xs text-emerald-400 bg-emerald-950/50 border border-emerald-900/50 rounded-xl text-center">
+            <div className="p-3 text-xs text-emerald-400 bg-emerald-950/50 border border-emerald-900/50 [[data-theme=light]_&]:bg-emerald-50 [[data-theme=light]_&]:text-emerald-700 [[data-theme=light]_&]:border-emerald-200 rounded-xl text-center">
               {message}
             </div>
           )}

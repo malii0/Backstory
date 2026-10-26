@@ -422,7 +422,18 @@ export default function StatsDashboard({
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
         {stats.rewatchChampion && stats.rewatchChampion.itemData && (
-          <div className="md:col-span-4 bg-card/80 border border-border/80 p-5 rounded-3xl flex items-center gap-4">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => onSelectItem?.(stats.rewatchChampion.itemData!)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                if (e.key === " ") e.preventDefault();
+                onSelectItem?.(stats.rewatchChampion.itemData!);
+              }
+            }}
+            className="md:col-span-4 bg-card/80 border border-border/80 p-5 rounded-3xl flex items-center gap-4 cursor-pointer"
+          >
             {stats.rewatchChampion.itemData.poster_path ? (
               <div className="w-20 h-28 relative rounded-2xl overflow-hidden border border-border flex-shrink-0 shadow-lg">
                 <Image
@@ -481,7 +492,16 @@ export default function StatsDashboard({
                 return (
                   <div
                     key={`${item.media_type}_${item.id}`}
-                    className="bg-background border border-border/80 rounded-xl p-2 relative group flex flex-col justify-between"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onSelectItem?.(item)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        if (e.key === " ") e.preventDefault();
+                        onSelectItem?.(item);
+                      }
+                    }}
+                    className="bg-background border border-border/80 rounded-xl p-2 relative group flex flex-col justify-between cursor-pointer"
                   >
                     {item.poster_path ? (
                       <div className="w-full aspect-[2/3] relative rounded-lg overflow-hidden mb-1.5">

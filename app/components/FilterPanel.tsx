@@ -50,6 +50,7 @@ export default function FilterPanel({
           </h3>
           <button
             onClick={onClose}
+            aria-label="Kapat"
             className="p-1 text-muted-foreground hover:text-foreground rounded-lg bg-muted/60"
           >
             <X className="w-4 h-4" />
@@ -80,6 +81,7 @@ export default function FilterPanel({
             {explore.query && (
               <button
                 onClick={() => explore.setQuery("")}
+                aria-label="Aramayı temizle"
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 <X className="w-3.5 h-3.5" />

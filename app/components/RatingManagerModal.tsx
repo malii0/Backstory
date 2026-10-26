@@ -238,6 +238,7 @@ export default function RatingManagerModal({
 
           <button
             onClick={onClose}
+            aria-label="Kapat"
             className="p-2 text-muted-foreground hover:text-foreground bg-card border border-border rounded-full transition-colors"
           >
             <X className="w-4 h-4" />
@@ -257,6 +258,7 @@ export default function RatingManagerModal({
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery("")}
+                aria-label="Aramayı temizle"
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 <X className="w-3.5 h-3.5" />
@@ -416,6 +418,8 @@ export default function RatingManagerModal({
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <button
                       onClick={() => toggleSelectItem(key)}
+                      aria-label={`${title} seç`}
+                      aria-pressed={isSelected}
                       className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0"
                     >
                       {isSelected ? (
@@ -471,8 +475,10 @@ export default function RatingManagerModal({
                         <button
                           key={star}
                           onClick={() => onUpdateRating(item, star)}
-                          className="p-0.5 hover:scale-125 transition-transform focus:outline-none"
+                          className="p-0.5 hover:scale-125 transition-transform rounded focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
                           title={`${star} Puan`}
+                          aria-label={`${star} puan ver`}
+                          aria-pressed={log.rating === star}
                         >
                           <Star
                             className={`w-3.5 h-3.5 ${
@@ -501,6 +507,7 @@ export default function RatingManagerModal({
                           onClick={() => onUpdateRating(item, 0)}
                           className="p-1.5 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                           title="Puanı Kaldır"
+                          aria-label="Puanı kaldır"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

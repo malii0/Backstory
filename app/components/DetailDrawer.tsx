@@ -399,6 +399,7 @@ export default function DetailDrawer({
                 setActivePerson(null);
                 setFilmography([]);
               }}
+              aria-label="Kapat"
               className="absolute top-4 right-4 text-muted-foreground hover:text-foreground p-1 rounded-full bg-muted border border-border"
             >
               <X className="w-4 h-4" />
@@ -507,6 +508,7 @@ export default function DetailDrawer({
           onClick={onClose}
           className="absolute top-4 right-4 text-muted-foreground hover:text-foreground bg-card/80 hover:bg-card p-2 rounded-full border border-border transition-colors z-20 backdrop-blur-md"
           title="Kapat (ESC)"
+          aria-label="Kapat"
         >
           <X className="w-4 h-4" />
         </button>
@@ -804,8 +806,10 @@ export default function DetailDrawer({
                       key={star}
                       type="button"
                       onClick={() => handleStarClick(star)}
-                      className="p-1 transition-transform active:scale-125 focus:outline-none"
+                      className="p-1 transition-transform active:scale-125 rounded focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
                       title={`${star} Puan`}
+                      aria-label={`${star} puan ver`}
+                      aria-pressed={(currentLog?.rating || 0) === star}
                     >
                       <Star
                         className={`w-5 h-5 sm:w-6 sm:h-6 transition-colors ${
@@ -830,6 +834,7 @@ export default function DetailDrawer({
                       onClick={() =>
                         onUpdateWatchCount(Math.max(1, currentWatchCount - 1))
                       }
+                      aria-label="İzlenme sayısını azalt"
                       className="p-1 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-colors"
                       disabled={currentWatchCount <= 1}
                     >
@@ -840,6 +845,7 @@ export default function DetailDrawer({
                     </span>
                     <button
                       onClick={() => onUpdateWatchCount(currentWatchCount + 1)}
+                      aria-label="İzlenme sayısını artır"
                       className="p-1 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-colors"
                     >
                       <Plus className="w-3.5 h-3.5" />

@@ -19,7 +19,7 @@ const RUNTIME_SKIP_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export function useMediaLogs(
   isAuthenticated: boolean,
-  showToast: (msg: string) => void,
+  showToast: (msg: string, type?: "success" | "error") => void,
   isAuthLoading: boolean = false,
 ) {
   const [logs, setLogs] = useState<Record<string, LogMetadata>>({});
@@ -620,6 +620,7 @@ export function useMediaLogs(
           }
           showToast(
             "Bulut senkronizasyonu başarısız oldu. Değişiklik geri alındı.",
+            "error",
           );
         }
       } else {
@@ -661,6 +662,7 @@ export function useMediaLogs(
           }
           showToast(
             "Bulut senkronizasyonu başarısız oldu. Değişiklik geri alındı.",
+            "error",
           );
         } else {
           if (cachedProviders === undefined) {
@@ -861,6 +863,7 @@ export function useMediaLogs(
         }
         showToast(
           "Bulut senkronizasyonu başarısız oldu. Değişiklik geri alındı.",
+          "error",
         );
         void reloadFromCloud();
       } else {
@@ -965,7 +968,7 @@ export function useMediaLogs(
       if (undoRecordRef.current === null) {
         setUndoRecord(record);
       }
-      showToast("Geri alma buluta kaydedilemedi.");
+      showToast("Geri alma buluta kaydedilemedi.", "error");
       void reloadFromCloud();
     }
   }, [setUndoRecord, incrementKeyVersion, enqueueKeyWrite, reloadFromCloud, showToast]);

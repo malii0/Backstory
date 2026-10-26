@@ -6,12 +6,12 @@ export default function SkeletonGrid() {
       {Array.from({ length: 12 }).map((_, i) => (
         <div
           key={i}
-          className="bg-zinc-900/40 rounded-xl overflow-hidden border border-zinc-800/80 animate-pulse flex flex-col"
+          className="bg-card/40 rounded-xl overflow-hidden border border-border/80 animate-pulse flex flex-col"
         >
-          <div className="aspect-[2/3] bg-zinc-800/60 w-full" />
+          <div className="aspect-[2/3] bg-muted/60 w-full" />
           <div className="p-3 space-y-2">
-            <div className="h-3 bg-zinc-800/80 rounded w-3/4" />
-            <div className="h-2 bg-zinc-800/50 rounded w-1/2" />
+            <div className="h-3 bg-muted/80 rounded w-3/4" />
+            <div className="h-2 bg-muted/50 rounded w-1/2" />
           </div>
         </div>
       ))}

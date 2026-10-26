@@ -153,9 +153,15 @@ function MediaCardComponent({
         )}
 
         {!readOnly && (
-          <div className="absolute top-2 right-2 flex flex-col gap-1.5 opacity-100 [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100 transition-opacity z-20">
+          <div className="absolute top-2 right-2 flex flex-col gap-1.5 opacity-100 [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:group-focus-within:opacity-100 transition-opacity z-20">
             <button
               onClick={handleCompleted}
+              aria-label={
+                viewerIsCompleted
+                  ? "İzlenenlerden çıkar"
+                  : "İzlendi olarak işaretle"
+              }
+              aria-pressed={viewerIsCompleted}
               style={
                 viewerIsCompleted
                   ? {
@@ -178,6 +184,12 @@ function MediaCardComponent({
             </button>
             <button
               onClick={handleWatchlist}
+              aria-label={
+                viewerIsWatchlist
+                  ? "İzleme listesinden çıkar"
+                  : "İzleme listesine ekle"
+              }
+              aria-pressed={viewerIsWatchlist}
               className={`p-2 rounded-xl backdrop-blur-md border transition-all ${
                 viewerIsWatchlist
                   ? "bg-accent border-accent text-accent-foreground font-bold shadow-md"

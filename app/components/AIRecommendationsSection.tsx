@@ -54,7 +54,7 @@ export default function AIRecommendationsSection({
           <button
             onClick={() => handleTrigger(true)}
             disabled={loading}
-            className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+            className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 [[data-theme=light]_&]:text-purple-700 border border-purple-500/30 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50"
           >
             <RefreshCw
               className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
@@ -72,7 +72,11 @@ export default function AIRecommendationsSection({
         )}
       </div>
 
-      {error && <p className="text-red-400 text-xs">{error}</p>}
+      {error && (
+        <p className="text-red-400 [[data-theme=light]_&]:text-red-600 text-xs">
+          {error}
+        </p>
+      )}
 
       {data && (
         <div className="space-y-4 pt-2">
@@ -82,7 +86,7 @@ export default function AIRecommendationsSection({
               {data.matchedKeywords.map((kw, idx) => (
                 <span
                   key={idx}
-                  className="px-2 py-0.5 bg-purple-500/10 text-purple-300 border border-purple-500/20 text-[10px] rounded-lg font-medium"
+                  className="px-2 py-0.5 bg-purple-500/10 text-purple-300 [[data-theme=light]_&]:text-purple-700 border border-purple-500/20 [[data-theme=light]_&]:border-purple-500/30 text-[10px] rounded-lg font-medium"
                 >
                   #{kw}
                 </span>
@@ -117,7 +121,7 @@ export default function AIRecommendationsSection({
                   />
                   {item.reason && (
                     <p
-                      className="text-[10px] text-purple-300/90 italic bg-purple-950/30 border border-purple-800/30 px-2 py-1.5 rounded-lg leading-tight line-clamp-2"
+                      className="text-[10px] text-purple-300/90 italic bg-purple-950/30 border border-purple-800/30 [[data-theme=light]_&]:text-purple-700 [[data-theme=light]_&]:bg-purple-50 [[data-theme=light]_&]:border-purple-200 px-2 py-1.5 rounded-lg leading-tight line-clamp-2"
                       title={item.reason}
                     >
                       &quot;{item.reason}&quot;
