@@ -75,6 +75,7 @@ export default function Header({
             <button
               onClick={onPrivacyClick}
               title="Gizlilik & KVKK Aydınlatması"
+              aria-label="Gizlilik ve KVKK aydınlatması"
               className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-accent hover:border-border/80 transition-all flex items-center justify-center"
             >
               <ShieldCheck className="w-3.5 h-3.5" />
@@ -144,6 +145,7 @@ export default function Header({
             <button
               onClick={onLogoutClick}
               title="Çıkış Yap"
+              aria-label="Çıkış yap"
               className="p-2.5 rounded-xl bg-card border border-border text-muted-foreground hover:text-red-400 transition-colors flex-shrink-0"
             >
               <LogOut className="w-4 h-4" />

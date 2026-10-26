@@ -1,7 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useRef } from "react";
 import { X, ShieldCheck } from "lucide-react";
+import { useDialog } from "@/hooks/useDialog";
 
 interface PrivacyModalProps {
   isOpen: boolean;
@@ -9,11 +10,25 @@ interface PrivacyModalProps {
 }
 
 export default function PrivacyModal({ isOpen, onClose }: PrivacyModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialog({
+    isOpen,
+    onClose,
+    containerRef: dialogRef,
+  });
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div className="bg-card border border-border p-6 rounded-3xl max-w-md w-full space-y-4 text-left shadow-2xl relative animate-in fade-in zoom-in-95">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="privacy-modal-title"
+        tabIndex={-1}
+        className="bg-card border border-border p-6 rounded-3xl max-w-md w-full space-y-4 text-left shadow-2xl relative animate-in fade-in zoom-in-95 outline-none"
+      >
         <button
           onClick={onClose}
           aria-label="Kapat"
@@ -24,7 +39,10 @@ export default function PrivacyModal({ isOpen, onClose }: PrivacyModalProps) {
 
         <div className="flex items-center gap-2 text-accent">
           <ShieldCheck className="w-5 h-5" />
-          <h3 className="text-base font-bold text-foreground">
+          <h3
+            id="privacy-modal-title"
+            className="text-base font-bold text-foreground"
+          >
             Gizlilik & KVKK Aydınlatması
           </h3>
         </div>

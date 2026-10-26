@@ -27,6 +27,8 @@ import {
 import { MediaItem, MediaDetail, LogMetadata, Collection } from "@/lib/types";
 import { getEffectiveWatchCount } from "@/lib/utils";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { useDialog } from "@/hooks/useDialog";
+import { onActivateKey } from "@/lib/a11y";
 
 interface DetailDrawerProps {
   selectedItem: MediaItem;
@@ -166,20 +168,23 @@ export default function DetailDrawer({
     };
   }, []);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        if (activePerson) {
-          setActivePerson(null);
-        } else {
-          onCloseRef.current();
-        }
-      }
-    };
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const personDialogRef = useRef<HTMLDivElement>(null);
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activePerson]);
+  useDialog({
+    isOpen: true,
+    onClose,
+    containerRef: drawerRef,
+  });
+
+  useDialog({
+    isOpen: Boolean(activePerson),
+    onClose: () => {
+      setActivePerson(null);
+      setFilmography([]);
+    },
+    containerRef: personDialogRef,
+  });
 
   const trailerKey = useMemo(() => {
     if (!detailData?.videos?.results) return null;
@@ -393,7 +398,14 @@ export default function DetailDrawer({
           onClick={(e) => e.stopPropagation()}
           className="fixed inset-0 z-60 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200"
         >
-          <div className="bg-card border border-border rounded-3xl p-6 max-w-lg w-full space-y-4 max-h-[80vh] flex flex-col shadow-2xl relative">
+          <div
+            ref={personDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Filmografi"
+            tabIndex={-1}
+            className="bg-card border border-border rounded-3xl p-6 max-w-lg w-full space-y-4 max-h-[80vh] flex flex-col shadow-2xl relative outline-none"
+          >
             <button
               onClick={() => {
                 setActivePerson(null);
@@ -440,12 +452,19 @@ export default function DetailDrawer({
                   return (
                     <div
                       key={key}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => {
                         if (onSelectItem) onSelectItem(item);
                         setActivePerson(null);
                         setFilmography([]);
                       }}
-                      className="flex items-center gap-3 p-2 rounded-xl bg-background/60 hover:bg-muted/80 border border-border/80 cursor-pointer transition-all group"
+                      onKeyDown={onActivateKey(() => {
+                        if (onSelectItem) onSelectItem(item);
+                        setActivePerson(null);
+                        setFilmography([]);
+                      })}
+                      className="flex items-center gap-3 p-2 rounded-xl bg-background/60 hover:bg-muted/80 border border-border/80 cursor-pointer transition-all group focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
                     >
                       {item.poster_path ? (
                         <div className="w-10 h-14 relative flex-shrink-0">
@@ -501,8 +520,13 @@ export default function DetailDrawer({
       )}
 
       <div
+        ref={drawerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="detail-drawer-title"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-full md:max-w-2xl min-h-dvh md:min-h-0 md:max-h-[90vh] bg-background border-0 md:border border-border/80 rounded-none md:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative"
+        className="w-full max-w-full md:max-w-2xl min-h-dvh md:min-h-0 md:max-h-[90vh] bg-background border-0 md:border border-border/80 rounded-none md:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative outline-none"
       >
         <button
           onClick={onClose}
@@ -579,6 +603,7 @@ export default function DetailDrawer({
                 </div>
 
                 <h2
+                  id="detail-drawer-title"
                   title={title}
                   className="text-lg md:text-xl font-extrabold text-foreground leading-snug break-words"
                 >
@@ -866,6 +891,8 @@ export default function DetailDrawer({
                 {castList.map((actor) => (
                   <div
                     key={actor.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() =>
                       setActivePerson({
                         id: actor.id,
@@ -873,7 +900,14 @@ export default function DetailDrawer({
                         job: "Actor",
                       })
                     }
-                    className="flex-shrink-0 w-20 text-center cursor-pointer group"
+                    onKeyDown={onActivateKey(() =>
+                      setActivePerson({
+                        id: actor.id,
+                        name: actor.name,
+                        job: "Actor",
+                      }),
+                    )}
+                    className="flex-shrink-0 w-20 text-center cursor-pointer group rounded-2xl focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
                   >
                     {actor.profile_path ? (
                       <div className="w-20 h-24 relative mb-1.5 rounded-2xl overflow-hidden border border-border group-hover:border-accent/50 transition-colors shadow-md">
@@ -920,13 +954,19 @@ export default function DetailDrawer({
                 {collectionData.parts?.map((part) => (
                   <div
                     key={part.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => {
                       if (onSelectItem)
                         onSelectItem({ ...part, media_type: "movie" });
                     }}
-                    className={`flex-shrink-0 w-20 cursor-pointer group ${
+                    onKeyDown={onActivateKey(() => {
+                      if (onSelectItem)
+                        onSelectItem({ ...part, media_type: "movie" });
+                    })}
+                    className={`flex-shrink-0 w-20 cursor-pointer group rounded-xl focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none ${
                       part.id === selectedItem.id
-                        ? "ring-2 ring-accent rounded-xl"
+                        ? "ring-2 ring-accent"
                         : ""
                     }`}
                   >
@@ -967,10 +1007,15 @@ export default function DetailDrawer({
                   return (
                     <div
                       key={key}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => {
                         if (onSelectItem) onSelectItem(rec);
                       }}
-                      className="bg-card border border-border/80 rounded-xl p-2 cursor-pointer hover:border-accent/40 transition-all group flex flex-col justify-between"
+                      onKeyDown={onActivateKey(() => {
+                        if (onSelectItem) onSelectItem(rec);
+                      })}
+                      className="bg-card border border-border/80 rounded-xl p-2 cursor-pointer hover:border-accent/40 transition-all group flex flex-col justify-between focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
                     >
                       {rec.poster_path ? (
                         <div className="w-full aspect-[2/3] relative rounded-lg overflow-hidden mb-1.5">

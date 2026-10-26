@@ -1,10 +1,11 @@
 "use client";
 
-import React from "react";
+import React, { useRef } from "react";
 import Image from "next/image";
 import { X, Search, SlidersHorizontal, Star, AlertCircle } from "lucide-react";
 import { GENRES_LIST } from "@/lib/constants";
 import { ActiveTab } from "@/lib/types";
+import { useDialog } from "@/hooks/useDialog";
 
 interface FilterPanelProps {
   show: boolean;
@@ -24,6 +25,13 @@ export default function FilterPanel({
   displayedItemsLength,
 }: FilterPanelProps) {
   const isSearchActive = explore.query.trim().length > 0;
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useDialog({
+    isOpen: show,
+    onClose,
+    containerRef: panelRef,
+  });
 
   return (
     <>
@@ -37,14 +45,23 @@ export default function FilterPanel({
       />
 
       <div
-        className={`fixed inset-x-0 bottom-0 z-50 bg-card border-t border-border rounded-t-3xl p-5 space-y-4 shadow-2xl max-h-[75vh] overflow-y-auto no-scrollbar max-w-2xl mx-auto transition-transform duration-300 ease-out will-change-transform ${
+        ref={panelRef}
+        role={show ? "dialog" : undefined}
+        aria-modal={show ? "true" : undefined}
+        aria-labelledby={show ? "filter-panel-title" : undefined}
+        aria-hidden={!show ? "true" : undefined}
+        tabIndex={-1}
+        className={`fixed inset-x-0 bottom-0 z-50 bg-card border-t border-border rounded-t-3xl p-5 space-y-4 shadow-2xl max-h-[75vh] overflow-y-auto no-scrollbar max-w-2xl mx-auto transition-transform duration-300 ease-out will-change-transform outline-none ${
           show ? "translate-y-0" : "translate-y-full"
         }`}
       >
         <div className="w-12 h-1 bg-muted-foreground/40 rounded-full mx-auto mb-1 flex-shrink-0" />
 
         <div className="flex items-center justify-between pb-2 border-b border-border">
-          <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+          <h3
+            id="filter-panel-title"
+            className="text-sm font-bold text-foreground flex items-center gap-2"
+          >
             <SlidersHorizontal className="w-4 h-4 text-accent" />
             Filtrele & Ara
           </h3>

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { MediaItem, LogMetadata } from "@/lib/types";
 import { getEffectiveWatchCount } from "@/lib/utils";
+import { onActivateKey } from "@/lib/a11y";
 
 interface MediaCardProps {
   item: MediaItem;
@@ -100,9 +101,13 @@ function MediaCardComponent({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={`${title} detaylarını aç`}
       onClick={handleSelect}
+      onKeyDown={onActivateKey(handleSelect)}
       style={getCardStyle()}
-      className={`group bg-card/60 rounded-2xl overflow-hidden cursor-pointer transition-all duration-200 flex flex-col h-full relative border ${
+      className={`group bg-card/60 rounded-2xl overflow-hidden cursor-pointer transition-all duration-200 flex flex-col h-full relative border focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none ${
         !isCompleted && !isWatchlist
           ? "border-border/80 hover:border-border"
           : ""

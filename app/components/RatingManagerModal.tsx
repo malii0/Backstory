@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import Image from "next/image";
 import {
   X,
@@ -12,6 +12,8 @@ import {
   Square,
 } from "lucide-react";
 import { LogMetadata, MediaItem } from "@/lib/types";
+import { useDialog } from "@/hooks/useDialog";
+import { onActivateKey } from "@/lib/a11y";
 
 interface RatingManagerModalProps {
   isOpen: boolean;
@@ -205,6 +207,13 @@ export default function RatingManagerModal({
     [logs],
   );
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialog({
+    isOpen,
+    onClose,
+    containerRef: dialogRef,
+  });
+
   if (!isOpen) return null;
 
   return (
@@ -213,8 +222,13 @@ export default function RatingManagerModal({
       className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200"
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="rating-manager-modal-title"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-3xl bg-background border border-border rounded-3xl shadow-2xl flex flex-col max-h-[88vh] overflow-hidden relative"
+        className="w-full max-w-3xl bg-background border border-border rounded-3xl shadow-2xl flex flex-col max-h-[88vh] overflow-hidden relative outline-none"
       >
         <div className="p-5 border-b border-border/80 flex items-center justify-between gap-3 bg-card/50">
           <div className="flex items-center gap-3">
@@ -222,7 +236,10 @@ export default function RatingManagerModal({
               <Star className="w-5 h-5 fill-accent" />
             </div>
             <div>
-              <h2 className="text-lg font-extrabold text-foreground">
+              <h2
+                id="rating-manager-modal-title"
+                className="text-lg font-extrabold text-foreground"
+              >
                 Yönetim
               </h2>
               <p className="text-xs text-muted-foreground">
@@ -430,11 +447,17 @@ export default function RatingManagerModal({
                     </button>
 
                     <div
+                      role="button"
+                      tabIndex={0}
                       onClick={() => {
                         onSelectItem(item);
                         onClose();
                       }}
-                      className="flex items-center gap-3 min-w-0 cursor-pointer flex-1"
+                      onKeyDown={onActivateKey(() => {
+                        onSelectItem(item);
+                        onClose();
+                      })}
+                      className="flex items-center gap-3 min-w-0 cursor-pointer flex-1 rounded-xl focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
                     >
                       {item.poster_path ? (
                         <div className="w-10 h-14 relative flex-shrink-0">

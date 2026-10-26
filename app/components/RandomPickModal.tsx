@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useRef } from "react";
 import { X, Sparkles, Dices } from "lucide-react";
 import { MediaItem } from "@/lib/types";
+import { useDialog } from "@/hooks/useDialog";
 
 interface RandomPickModalProps {
   item: MediaItem | null;
@@ -17,11 +18,25 @@ export default function RandomPickModal({
   onSelect,
   onReroll,
 }: RandomPickModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialog({
+    isOpen: Boolean(item),
+    onClose,
+    containerRef: dialogRef,
+  });
+
   if (!item) return null;
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div className="bg-card border border-border p-6 rounded-3xl max-w-sm w-full space-y-4 text-center shadow-2xl relative animate-in fade-in zoom-in-95">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="random-pick-modal-title"
+        tabIndex={-1}
+        className="bg-card border border-border p-6 rounded-3xl max-w-sm w-full space-y-4 text-center shadow-2xl relative animate-in fade-in zoom-in-95 outline-none"
+      >
         <button
           onClick={onClose}
           aria-label="Kapat"
@@ -38,7 +53,10 @@ export default function RandomPickModal({
           <p className="text-[10px] font-bold uppercase tracking-wider text-accent">
             Rastgele Seçim
           </p>
-          <h3 className="text-lg font-extrabold text-foreground mt-1">
+          <h3
+            id="random-pick-modal-title"
+            className="text-lg font-extrabold text-foreground mt-1"
+          >
             {item.title || item.name}
           </h3>
         </div>

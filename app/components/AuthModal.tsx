@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import Image from "next/image";
 import { X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { isUserNotFoundError, mapAuthErrorToTurkish } from "@/lib/authErrors";
+import { useDialog } from "@/hooks/useDialog";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -45,6 +46,13 @@ export default function AuthModal({
   const hasLower = /[a-z]/.test(password);
   const hasNumber = /[0-9]/.test(password);
   const isPasswordValid = isMinLength && hasUpper && hasLower && hasNumber;
+
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialog({
+    isOpen,
+    onClose: mode !== "set_password" ? onClose : undefined,
+    containerRef: dialogRef,
+  });
 
   if (!isOpen) return null;
 
@@ -139,7 +147,14 @@ export default function AuthModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-      <div className="w-full max-w-sm rounded-3xl bg-card p-6 border border-border shadow-2xl space-y-4 relative">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="auth-modal-title"
+        tabIndex={-1}
+        className="w-full max-w-sm rounded-3xl bg-card p-6 border border-border shadow-2xl space-y-4 relative outline-none"
+      >
         {onClose && mode !== "set_password" && (
           <button
             onClick={onClose}
@@ -161,7 +176,7 @@ export default function AuthModal({
               className="object-cover"
             />
           </div>
-          <h2 className="text-xl font-bold text-foreground">
+          <h2 id="auth-modal-title" className="text-xl font-bold text-foreground">
             {mode === "set_password"
               ? "Yeni Şifre Belirleyin"
               : mode === "forgot_password"
