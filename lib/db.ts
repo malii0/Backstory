@@ -45,7 +45,7 @@ export const fetchLogsFromSupabase = async (): Promise<{
     const userId = await getCurrentUserId();
 
     if (!userId) {
-      return { data: {}, error: null };
+      return { data: {}, error: "no_session" };
     }
 
     const { data, error } = await supabase

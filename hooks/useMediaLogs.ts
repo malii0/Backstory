@@ -38,6 +38,7 @@ export function useMediaLogs(
   const userIdRef = useRef<string | null>(null);
   const cacheWritableRef = useRef<boolean>(false);
   const lastReloadAtRef = useRef<number>(0);
+  const lastReloadOkAtRef = useRef<number>(0);
   const runtimeSkipMapRef = useRef<{
     userId: string;
     map: Record<string, number>;
@@ -146,6 +147,7 @@ export function useMediaLogs(
     cacheWritableRef.current = false;
     userIdRef.current = null;
     runtimeSkipMapRef.current = null;
+    lastReloadOkAtRef.current = 0;
     fetchRequestIdRef.current += 1;
     logsRef.current = {};
 
@@ -186,6 +188,7 @@ export function useMediaLogs(
 
     if (currentRequestId === fetchRequestIdRef.current) {
       if (!error && data) {
+        lastReloadOkAtRef.current = Date.now();
         const protectedKeys = new Set<string>(writeQueueRef.current.keys());
         for (const [key, currentVersion] of keyVersionsRef.current.entries()) {
           if (versionsBeforeFetch.get(key) !== currentVersion) {
@@ -472,7 +475,8 @@ export function useMediaLogs(
     const handleReturnOrOnline = () => {
       if (
         document.visibilityState === "visible" &&
-        Date.now() - lastReloadAtRef.current >= 30_000
+        Date.now() - lastReloadOkAtRef.current >= 30_000 &&
+        Date.now() - lastReloadAtRef.current >= 5_000
       ) {
         void reloadFromCloud();
       }
